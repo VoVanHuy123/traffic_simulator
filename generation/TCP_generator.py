@@ -1,138 +1,475 @@
-# from scapy.all import IP, TCP,Raw
-# import random
 
 
-# def generate_tcp_handshake(src_ip, dst_ip, src_port, dst_port, start_time=0):
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-#     packets = []
+import numpy as np
+import pandas as pd
+from scapy.all import wrpcap,TCP,IP,Raw
+import joblib
+from .base_generator import BaseFlowGenerator
+from rules.protocol_rules import PROTOCOL_RULES
+from preprocessing.data_clean import filter_valid_ack
 
-#     seq_client = random.randint(1000, 50000)
-#     seq_server = random.randint(1000, 50000)
 
-#     t = start_time
+class TCPFlowGenerator(BaseFlowGenerator):
 
-#     # SYN
-#     syn = IP(src=src_ip, dst=dst_ip) / TCP(
-#         sport=src_port,
-#         dport=dst_port,
-#         flags="S",
-#         seq=seq_client
-#     )
-#     syn.time = t
-#     packets.append(syn)
+    def __init__(self, protocol, model_dir="models/sequences_models"):
+        self.protocol = protocol
+        self.model_dir = model_dir
+        self.stages = PROTOCOL_RULES[protocol].get("stages")
 
-#     t += 0.001
+        self.hmm = None
+        self.inv_state_map = None
 
-#     # SYN ACK
-#     syn_ack = IP(src=dst_ip, dst=src_ip) / TCP(
-#         sport=dst_port,
-#         dport=src_port,
-#         flags="SA",
-#         seq=seq_server,
-#         ack=seq_client + 1
-#     )
-#     syn_ack.time = t
-#     packets.append(syn_ack)
+    def set_model(self, stage=None):
+        if stage:
+            base = f"{self.model_dir}/{self.protocol}/{stage}/{self.protocol}_{stage}"
+        else:
+            base = f"{self.model_dir}/{self.protocol}/{self.protocol}"
 
-#     t += 0.001
+        self.hmm = joblib.load(f"{base}_hmm.pkl")
+        self.inv_state_map = joblib.load(f"{base}_inv_state_map.pkl")
 
-#     # ACK
-#     ack = IP(src=src_ip, dst=dst_ip) / TCP(
-#         sport=src_port,
-#         dport=dst_port,
-#         flags="A",
-#         seq=seq_client + 1,
-#         ack=seq_server + 1
-#     )
-#     ack.time = t
-#     packets.append(ack)
+    
+    # DECODE BIN → VALUE
+    def decode_packet(self, parts):
 
-#     return packets, seq_client + 1, seq_server + 1, t
-# def generate_tcp_close(src_ip, dst_ip, src_port, dst_port,
-#                        seq_client, seq_server, start_time):
+        direction = int(parts[0])
+        flag = int(parts[1])
 
-#     packets = []
+        # packet_length bin → value
+        length_bin = int(parts[2])
+        length_map = {
+            0: np.random.randint(40, 70),
+            1: np.random.randint(70, 100),
+            2: np.random.randint(100, 300),
+            3: np.random.randint(300, 1500)
+        }
 
-#     t = start_time
+        # iat bin → value
+        iat_bin = int(parts[3])
+        iat_map = {
+            0: np.random.uniform(0.000001, 0.0001),
+            1: np.random.uniform(0.0001, 0.01),
+            2: np.random.uniform(0.01, 0.1),
+            3: np.random.uniform(0.1, 1)
+        }
 
-#     # FIN from client
-#     fin1 = IP(src=src_ip, dst=dst_ip) / TCP(
-#         sport=src_port,
-#         dport=dst_port,
-#         flags="FA",
-#         seq=seq_client,
-#         ack=seq_server
-#     )
-#     fin1.time = t
-#     packets.append(fin1)
+        return {
+            "direction": direction,
+            "tcp_flags": flag,
+            "packet_length": length_map[length_bin],
+            "iat": iat_map[iat_bin]
+        }
 
-#     t += 0.001
+    
+    # GENERATE
+    def generate(self, n_packets=10):
 
-#     # ACK from server
-#     ack1 = IP(src=dst_ip, dst=src_ip) / TCP(
-#         sport=dst_port,
-#         dport=src_port,
-#         flags="A",
-#         seq=seq_server,
-#         ack=seq_client + 1
-#     )
-#     ack1.time = t
-#     packets.append(ack1)
+        Xd, _ = self.hmm.sample(n_packets)
 
-#     t += 0.001
+        states = [self.inv_state_map[int(s[0])] for s in Xd]
 
-#     # FIN from server
-#     fin2 = IP(src=dst_ip, dst=src_ip) / TCP(
-#         sport=dst_port,
-#         dport=src_port,
-#         flags="FA",
-#         seq=seq_server,
-#         ack=seq_client + 1
-#     )
-#     fin2.time = t
-#     packets.append(fin2)
+        rows = []
 
-#     t += 0.001
+        for s in states:
+            parts = s.split("_")
+            row = self.decode_packet(parts)
+            rows.append(row)
 
-#     # ACK from client
-#     ack2 = IP(src=src_ip, dst=dst_ip) / TCP(
-#         sport=src_port,
-#         dport=dst_port,
-#         flags="A",
-#         seq=seq_client + 1,
-#         ack=seq_server + 1
-#     )
-#     ack2.time = t
-#     packets.append(ack2)
+        return pd.DataFrame(rows)
 
-#     return packets
+    # def generate_sequences(self,pkt_count):
+    #     for s in self.stages:
+    #         if(pkt_count):
+    #             self.set_model(s)
+    #             df = self.generate(3)
+    #             print(f"\n=== {s} ===")
+    #             print(df)
+    def generate_sequences(self, pkt_count):
 
-# def generate_response_segments(dst, src, dport, sport, seq_server, seq_client, size, t, model):
+        rules = PROTOCOL_RULES.get(self.protocol)
+        stages = rules.get("stages")
+        stage_pkts = rules.get("stage_packets")
 
-#     packets = []
+        results = []
+        results_dict = {
+            "handshake": [],
+            "data": [],
+            "closing": []
+        }
+        remaining = pkt_count
 
-#     remaining = size
+        
+        # 1. HANDSHAKE (always)
+        
+        handshake_count = stage_pkts.get("handshake", 0)
+        results_dict["handshake"]= []
 
-#     while remaining > 0:
+        if remaining >= handshake_count:
+            self.set_model("handshake")
+            df = self.generate(handshake_count)
+            results.append(df)
+            results_dict["handshake"] = df
+            remaining -= handshake_count
+        else:
+            
+            self.set_model("handshake")
+            df = self.generate(remaining)
+            results.append(df)
+            return pd.concat(results, ignore_index=True)
 
-#         seg = min(1460, remaining)
+        
+        # 2. DATA
+        
+        has_data = False
+        closing_count = stage_pkts.get("closing", 0)
+        
 
-#         payload = Raw(load=random_payload(seg))
+       
+        if remaining > 0:
 
-#         pkt = IP(src=dst,dst=src)/TCP(
-#             sport=dport,
-#             dport=sport,
-#             flags="PA",
-#             seq=seq_server,
-#             ack=seq_client
-#         )/payload
+            
+            if remaining > closing_count:
+                data_count = remaining - closing_count
+            else:
+                data_count = remaining
 
-#         pkt.time = t
-#         packets.append(pkt)
+            if data_count > 0:
+                self.set_model("data")
+                df = self.generate(data_count)
+                results.append(df)
+                results_dict["data"]=df
+                remaining -= data_count
+                has_data = True
 
-#         seq_server += seg
-#         remaining -= seg
+        
+        # 3. CLOSING
+        
+        if has_data and remaining > 0:
+            self.set_model("closing")
+            df = self.generate(remaining)
+            results.append(df)
+            results_dict["closing"] = df
 
-#         t += max(0.0005, np.random.normal(model["iat_mean"]["mean"],0.002))
+        
+        return pd.concat(results, ignore_index=True), results_dict
+    
+    def fsm_handshake_pkts(self,fixed,pkts_dict):
+        # 1. HANDSHAKE
+        
+        handshake = [
+            {"direction": 0, "tcp_flags": 2},
+            {"direction": 1, "tcp_flags": 18},
+            {"direction": 0, "tcp_flags": 16},
+        ]
+        pkts = []
+        if pkts_dict["handshake"] is not None:
+            pkts = pkts_dict["handshake"].to_dict("records")
+        else:
+            pkts = pkts_dict.to_dict("records")
 
-#     return packets, seq_server, t
+        for i in range(min(3, len(pkts))):
+            pkt = pkts[i]
+            pkt["direction"] = handshake[i]["direction"]
+            pkt["tcp_flags"] = handshake[i]["tcp_flags"]
+            fixed.append(pkt)
+    
+    def fix_data_order(self, df):
+
+        if df is None or df.empty:
+            return df
+
+        packets = df.to_dict("records")
+
+        # If the first packet is ACK (16) → move to the end
+        if packets[0]["tcp_flags"] == 16:
+            first = packets.pop(0)
+            packets.append(first)
+
+        return pd.DataFrame(packets)
+    
+    def re_pos_data_stage(self,pkts):
+        fixed= []
+        data_24 = [pkt for pkt in pkts if pkt["tcp_flags"] == 24]
+        data_16 = [pkt for pkt in pkts if pkt["tcp_flags"] == 16]
+
+        i, j = 0, 0
+        turn_24 = True   # bắt đầu bằng 24
+
+        while i < len(data_24) or j < len(data_16):
+
+            
+            # ƯU TIÊN 24
+            
+            if turn_24 and i < len(data_24):
+                pkt = data_24[i]
+                pkt["direction"] = 0 if i % 2 == 0 else 1   # optional
+                fixed.append(pkt)
+                i += 1
+
+                # nếu còn 16 thì chuyển lượt
+                if j < len(data_16):
+                    turn_24 = False
+
+            
+            # LẤY 16
+            
+            elif not turn_24 and j < len(data_16):
+                pkt = data_16[j]
+                pkt["direction"] = 1 if j % 2 == 0 else 0   # optional
+                fixed.append(pkt)
+                j += 1
+
+                turn_24 = True
+
+            
+            # HẾT 16 → spam 24
+            
+            elif i < len(data_24):
+                pkt = data_24[i]
+                pkt["direction"] = 0
+                fixed.append(pkt)
+                i += 1
+
+            
+            # HẾT 24 → lấy 16
+            
+            elif j < len(data_16):
+                pkt = data_16[j]
+                pkt["direction"] = 1
+                fixed.append(pkt)
+                j += 1
+        return fixed
+    def remove_duplicate_ack(self, df):
+        filtered = []
+        
+        prev_flags = None
+        prev_direction = None
+
+        for row in df:
+            flags = row["tcp_flags"]
+            direction = row["direction"]
+
+            
+            # Nếu là ACK
+            
+            if flags == 16:
+
+                # duplicate ACK cùng direction
+                if prev_flags == 16 and prev_direction == direction:
+                    continue
+
+                # ACK không có data trước đó
+                if prev_flags != 24:
+                    continue
+
+            
+            # giữ packet
+            
+            filtered.append(row)
+
+            prev_flags = flags
+            prev_direction = direction
+
+        return filtered
+    
+    def re_direction(self,fixed,pkts):
+        i = 0
+        while i < len(pkts):
+                req = pkts[i]
+                req = pkts[i]
+                req["direction"] = 0
+                fixed.append(req)
+                i += 1
+
+                if i >= len(pkts):
+                    break
+
+                # SERVER RESPONSE
+                res = pkts[i]
+                res["direction"] = 1
+                fixed.append(res)
+                i += 1
+
+                if i >= len(pkts):
+                    break
+        
+    
+    
+class HTTPFlowGenerator(TCPFlowGenerator):
+
+    
+    
+    def apply_fsm(self, results_dict):
+
+        fixed = []
+
+        
+        # 1. HANDSHAKE
+        self.fsm_handshake_pkts(fixed,results_dict) 
+       
+
+        
+        # 2. DATA (FIX ORDER + FSM)
+        
+        data_df = results_dict["data"]
+        data_df = self.fix_data_order(data_df)
+        if data_df is not None:
+            pkts = data_df.to_dict("records")
+            pkts = self.re_pos_data_stage(pkts)
+            pkts = self.remove_duplicate_ack(pkts)
+            self.re_direction(fixed,pkts)
+
+
+        
+        # 3. CLOSING
+        
+        if results_dict["closing"] is not None:
+
+            fixed.append({
+                "direction": 0,
+                "tcp_flags": 17,
+                "packet_length": np.random.randint(40, 80),
+                "iat": np.random.uniform(0.00001, 0.01)
+            })
+
+            fixed.append({
+                "direction": 1,
+                "tcp_flags": 16,
+                "packet_length": np.random.randint(40, 80),
+                "iat": np.random.uniform(0.00001, 0.01)
+            })
+
+        return pd.DataFrame(fixed)
+
+    
+    def generate_protocol_sequences(self, pkt_count=10):
+        df,dict = self.generate_sequences(pkt_count)
+        df = self.apply_fsm(dict)
+        return df
+    
+    
+
+
+    def to_pcap(self, all_df, filename="output.pcap"):
+
+        packets = []
+        client_port = np.random.randint(1024, 65535)
+        server_port = 80
+
+        
+        # TCP STATE (QUAN TRỌNG NHẤT)
+        
+        client_seq = np.random.randint(1000, 5000)
+        server_seq = np.random.randint(5000, 10000)
+
+        client_next_seq = client_seq
+        server_next_seq = server_seq
+
+        client_ack = 0
+        server_ack = 0
+
+        time = 0
+        for df in all_df:
+            
+            # NETWORK CONFIG
+            
+            c_num = np.random.randint(1, 100)
+            s_num = np.random.randint(1, 100)
+            client_ip = f"192.168.1.{c_num}"
+            server_ip = f"192.168.1.{s_num}"
+
+
+            
+            # LOOP PACKETS
+            
+            for row in df.to_dict("records"):
+
+                time += float(row["iat"])
+
+                direction = int(row["direction"])
+                flags = int(row["tcp_flags"])
+                pkt_len = int(row["packet_length"])
+
+                
+                # DETERMINE SIDE
+                
+                if direction == 0:
+                    sip, dip = client_ip, server_ip
+                    sport, dport = client_port, server_port
+
+                    seq = client_next_seq
+                    ack = client_ack
+
+                    is_client = True
+                else:
+                    sip, dip = server_ip, client_ip
+                    sport, dport = server_port, client_port
+
+                    seq = server_next_seq
+                    ack = server_ack
+
+                    is_client = False
+
+                
+                # DETERMINE PAYLOAD (QUAN TRỌNG)
+                
+                payload_size = 0
+
+                # PSH => có data
+                if flags & 0x08:
+                    payload_size = pkt_len
+
+                # SYN hoặc FIN => consume 1 seq
+                elif flags & 0x02 or flags & 0x01:
+                    payload_size = 1
+                    # payload_size = pkt_len
+
+                # ACK only => không có data
+                else:
+                    payload_size = 0
+
+                
+                # BUILD PACKET
+                
+                tcp_layer = TCP(
+                    sport=sport,
+                    dport=dport,
+                    flags=flags,
+                    seq=seq,
+                    ack=ack,
+                    window=64240
+                )
+
+                pkt = IP(src=sip, dst=dip) / tcp_layer
+
+                # ✅ ADD PAYLOAD (FIX LEN=40)
+                if payload_size > 1:
+                    pkt = pkt / Raw(load=b"A" * payload_size)
+
+                pkt.time = time
+                packets.append(pkt)
+
+                
+                # UPDATE TCP STATE (CORE)
+                
+                if is_client:
+                    client_next_seq += payload_size
+
+                    # server sẽ ACK lại client
+                    server_ack = client_next_seq
+
+                else:
+                    server_next_seq += payload_size
+
+                    # client sẽ ACK lại server
+                    client_ack = server_next_seq
+
+        
+        # SAVE PCAP
+        
+        wrpcap(filename, packets)
+        print(f"✅ Saved {filename}")

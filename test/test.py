@@ -1,17 +1,34 @@
+import sys
+import os
+
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+import joblib
+import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+from scapy.all import rdpcap,wrpcap
 
-# dataset thật
-real_df = pd.read_csv("dataset/http1_flow_dataset.csv")
 
-# dataset generate từ model
-syn_df = pd.read_csv("synthetic/http_synthetic_flows.csv")
-plt.hist(real_df["packet_count"], bins=30, alpha=0.5, label="real")
-plt.hist(syn_df["packet_count"], bins=60, alpha=1, label="synthetic")
+from generation.TCP_generator import TCPFlowGenerator,HTTPFlowGenerator
+from generation.flows_generate import generate_flow
+from preprocessing.data_clean import filter_valid_ack
+if __name__=="__main__":
+    df = generate_flow("http",6)
+    gen = HTTPFlowGenerator("http")
+    all_flows=[]
+    for index, row in df.iterrows():
+        print(f"== flow {index +1}")
+        sdf = gen.generate_protocol_sequences( int(row["packet_count"]))
+        
+        all_flows.append(sdf)
+        print(sdf)
 
-plt.title("Packet Count Distribution")
-plt.xlabel("packet_count")
-plt.ylabel("frequency")
+    gen.to_pcap(all_flows, "output/http_flow.pcap")
 
-plt.legend()
-plt.show()
+
+
+    # packets = rdpcap("data/http_pcap.pcap")
+    # data = filter_valid_ack(packets)
+    # wrpcap("data/http.pcap",data)
+
+
+    

@@ -1,162 +1,35 @@
 
-from scapy.all import rdpcap, ARP, ICMP, IP, IPv6, TCP, UDP
+import sys
+import os
+
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+from scapy.all import rdpcap, ARP, ICMP, IP, IPv6, TCP, UDP, BOOTP
 import csv
 import numpy as np
 from collections import defaultdict
-
-
-
-# -----------------------------
-# Detect application protocol
-# -----------------------------
-def detect_protocol(pkt):
-
-    if pkt.haslayer(TCP):
-
-        sport = pkt[TCP].sport
-        dport = pkt[TCP].dport
-
-        if sport == 80 or dport == 80:
-            return "HTTP"
-
-        if sport == 443 or dport == 443:
-            return "HTTPS"
-
-        if sport == 53 or dport == 53:
-            return "DNS"
-
-        return "TCP"
-
-    elif pkt.haslayer(UDP):
-
-        sport = pkt[UDP].sport
-        dport = pkt[UDP].dport
-
-        if sport == 53 or dport == 53:
-            return "DNS"
-
-        if sport == 67 or dport == 68:
-            return "DHCP"
-
-        return "UDP"
-    elif pkt.haslayer(ICMP):
-
-        return "ICMP"
-
-    return "OTHER"
-
-
-# -----------------------------
-# Build bidirectional flows
-# -----------------------------
-def build_flows(input_pcap):
-
-    packets = rdpcap(input_pcap)
-    packets = sorted(packets, key=lambda x: x.time)
-
-    flows = defaultdict(list)
-
-    for pkt in packets:
-
-        # -------- ARP --------
-        if pkt.haslayer(ARP):
-
-            src_ip = pkt[ARP].psrc
-            dst_ip = pkt[ARP].pdst
-
-            src_port = 0
-            dst_port = 0
-
-            transport = "ARP"
-            protocol = "ARP"
-
-        # -------- IPv4 --------
-        elif pkt.haslayer(IP):
-
-            src_ip = pkt[IP].src
-            dst_ip = pkt[IP].dst
-
-            if pkt.haslayer(TCP):
-
-                src_port = pkt[TCP].sport
-                dst_port = pkt[TCP].dport
-                transport = "TCP"
-
-            elif pkt.haslayer(UDP):
-
-                src_port = pkt[UDP].sport
-                dst_port = pkt[UDP].dport
-                transport = "UDP"
-            elif pkt.haslayer(ICMP):
-
-                src_port = 0
-                dst_port = 0
-                transport = "ICMP"
-
-            else:
-                continue
-
-            protocol = detect_protocol(pkt)
-
-        # -------- IPv6 --------
-        elif pkt.haslayer(IPv6):
-
-            src_ip = pkt[IPv6].src
-            dst_ip = pkt[IPv6].dst
-
-            if pkt.haslayer(TCP):
-
-                src_port = pkt[TCP].sport
-                dst_port = pkt[TCP].dport
-                transport = "TCP"
-
-            elif pkt.haslayer(UDP):
-
-                src_port = pkt[UDP].sport
-                dst_port = pkt[UDP].dport
-                transport = "UDP"
-
-            else:
-                continue
-
-            protocol = detect_protocol(pkt)
-
-        else:
-            continue
-
-        flow_key = tuple(sorted([
-            (src_ip, src_port),
-            (dst_ip, dst_port)
-        ])) + (transport, protocol)
-
-        flows[flow_key].append(pkt)
-
-    return flows
-
-
+from scapy.all import *
+from rules.protocol_rules import PROTOCOL_RULES
+from data_clean import *
 
 
 def extract_features(flows, output_csv):
 
     rows = []
+    headers = None
 
-    for flow_key, packets in flows.items():
+    for flow in flows:
 
-        packets = sorted(packets, key=lambda x: x.time)
+        packets = sorted(flow["packets"], key=lambda x: x.time)
+        protocol = flow["protocol"]
+        key_dict = flow["key_dict"]
 
-        (ip1, port1), (ip2, port2), transport, protocol = flow_key
-
-        src_ip = ip1
-        dst_ip = ip2
-        src_port = port1
-        dst_port = port2
+        # protocol = key_dict["protocol"] if "protocol" in key_dict else None
 
         packet_count = len(packets)
-        print (f"packet_count: {packet_count}")
 
         sizes = [len(pkt) for pkt in packets]
         total_bytes = sum(sizes)
-        avg_packet_size = float(np.mean(sizes))
+        avg_packet_size = float(np.mean(sizes)) if sizes else 0
 
         times = [float(pkt.time) for pkt in packets]
 
@@ -168,74 +41,62 @@ def extract_features(flows, output_csv):
             flow_duration = 0
             iat_mean = 0
 
-        # if flow_duration <= 0:
-        #     continue
-
-        # if packet_count <= 2:
-        #     continue
-
-        # if packet_count > 100:
-        #     continue
 
         
         flow_duration = np.log1p(flow_duration)
         packet_count = np.log1p(packet_count)
         avg_packet_size = np.log1p(avg_packet_size)
         iat_mean = np.log1p(iat_mean)
+        total_bytes = np.log1p(total_bytes)
 
-        rows.append([
-            src_ip,
-            dst_ip,
-            src_port,
-            dst_port,
-            transport,
-            protocol,
-            flow_duration,
-            packet_count,
-            total_bytes,
-            avg_packet_size,
-            iat_mean
-        ])
+        feature_dict = {
+            **key_dict,
+            "packet_count": packet_count,
+            "total_bytes": total_bytes,
+            "avg_packet_size": avg_packet_size,
+            "flow_duration": flow_duration,
+            "iat_mean": iat_mean
+        }
 
-    # -----------------------------
+        csv_feature_fields = PROTOCOL_RULES[protocol]["csv_feature_fields"]
+
+         # init header 
+        if headers is None:
+            headers = list(csv_feature_fields)
+
+        row = [feature_dict.get(f, None) for f in csv_feature_fields]
+
+        rows.append(row)
+
+    # -------------------------
     # WRITE CSV
-    # -----------------------------
+    # -------------------------
     with open(output_csv, "w", newline="") as f:
-
         writer = csv.writer(f)
-
-        writer.writerow([
-            "src_ip",
-            "dst_ip",
-            "src_port",
-            "dst_port",
-            "transport",
-            "protocol",
-            "flow_duration",
-            "packet_count",
-            "total_bytes",
-            "avg_packet_size",
-            "iat_mean"
-        ])
-
+        writer.writerow(headers)
         writer.writerows(rows)
 
     print("Feature extraction completed")
 
+
+
 def extract_packet_sequences(flows, output_csv):
 
     rows = []
-
     flow_id = 0
 
-    for flow_key, packets in flows.items():
+    for flow in flows:
 
-        packets = sorted(packets, key=lambda x: x.time)
+        packets = sorted(flow["packets"], key=lambda x: x.time)
+        protocol = flow["protocol"]
+        key_dict = flow["key_dict"]
+        # print(key_dict)
+        if protocol not in PROTOCOL_RULES:
+            continue
 
-        (ip1, port1), (ip2, port2), transport, protocol = flow_key
+        seq_fields = PROTOCOL_RULES[protocol]["csv_sequence_fields"]
 
         times = [float(pkt.time) for pkt in packets]
-
         if len(times) <= 1:
             continue
 
@@ -243,97 +104,56 @@ def extract_packet_sequences(flows, output_csv):
 
         for i, pkt in enumerate(packets):
 
-            timestamp = float(pkt.time)
+            
+            feature_map = {}
+            basic_feat, last_time = extract_basic_sequences_features(pkt,last_time,key_dict,protocol)
+            # merge basic features
+            feature_map.update(basic_feat)
 
-            # -----------------------------
-            # IAT
-            # -----------------------------
-            if i == 0:
-                iat = 0
-            else:
-                iat = timestamp - last_time
-
-            last_time = timestamp
-
-            # -----------------------------
-            # packet length
-            # -----------------------------
-            packet_length = len(pkt)
-
-            # -----------------------------
             # direction
-            # -----------------------------
-            if IP in pkt:
-                src = pkt[IP].src
-            elif IPv6 in pkt:
-                src = pkt[IPv6].src
-            else:
-                continue
+            direction_feat = extract_direction(protocol,pkt,key_dict)
+            feature_map.update(direction_feat)
+            
+            #flag
+            flags_feat = extract_flag(pkt)
+            feature_map.update(flags_feat)
 
-            if src == ip1:
-                direction = "fwd"
-            else:
-                direction = "bwd"
+            row = [flow_id]
 
-            # -----------------------------
-            # TCP flags
-            # -----------------------------
-            if TCP in pkt:
-                protocol = "TCP"
-                flags = str(pkt[TCP].flags)
+            for field in seq_fields:
+                field = field.strip()
+                row.append(feature_map.get(field, 0))
 
-            elif UDP in pkt:
-                protocol = "UDP"
-                flags = "NONE"
-
-            elif ICMP in pkt:
-                protocol = "ICMP"
-                flags = pkt[ICMP].type
-
-            rows.append([
-                flow_id,
-                iat,
-                packet_length,
-                direction,
-                flags
-            ])
+            rows.append(row)
 
         flow_id += 1
 
     # -----------------------------
     # WRITE CSV
     # -----------------------------
-    with open(output_csv, "w", newline="") as f:
+    extract_dataset_file(protocol,seq_fields,rows)
 
-        writer = csv.writer(f)
+from stage_extract import extract_stages_sequences
 
-        writer.writerow([
-            "flow_id",
-            "iat",
-            "packet_length",
-            "direction",
-            "tcp_flags"
-        ])
-
-        writer.writerows(rows)
-
-    print("Packet sequence extraction completed")
 # -----------------------------
 # Main
 # -----------------------------
 if __name__ == "__main__":
-    protocol = "dhcp"
+    protocol = "http"
 
     input_pcap = f"data/{protocol}_pcap.pcap"
 
     flows = build_flows(input_pcap)
 
-    extract_features(
-        flows,
-        f"dataset/{protocol}_flow_dataset.csv"
-    )
-    extract_packet_sequences(
-        flows,
-        f"dataset/{protocol}_sequences_dataset.csv"
-    )
+    flows = clean_flows(flows)
+   
+    extract_stages_sequences(protocol,flows,f"dataset/{protocol}_handshake_flow_dataset.csv")
+    # extract_features(
+    #     flows,
+    #     f"dataset/{protocol}_flow_dataset.csv"
+    # )
+    # extract_packet_sequences(
+    #     flows,
+    #     f"dataset/{protocol}_sequences_dataset.csv"
+    # )
   

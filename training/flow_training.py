@@ -1,7 +1,7 @@
 
 import pandas as pd
 from copulas.multivariate import GaussianMultivariate
-protocol = "dns"
+protocol = "http"
 import pickle
 df = pd.read_csv(f"dataset/{protocol}_flow_dataset.csv")
 
@@ -14,7 +14,7 @@ features = [
 model = GaussianMultivariate()
 
 model.fit(df[features])
-with open(f"models/{protocol}_flow.pkl", "wb") as f:
+with open(f"models/flow_models/{protocol}_flow.pkl", "wb") as f:
     pickle.dump(model, f)
 
 

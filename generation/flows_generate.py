@@ -37,8 +37,3 @@ def generate_flow(protocol,sample):
     return df
 
 
-# os.makedirs("synthetic", exist_ok=True)
-
-# df.to_csv(f"synthetic/{protocol}_synthetic_flows.csv", index=False)
-
-# print("Synthetic flows generated:", len(df))

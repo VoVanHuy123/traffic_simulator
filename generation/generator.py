@@ -1,199 +1,69 @@
-import json
-import random
+import sys
+import os
+
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+import pickle
+import pandas as pd
+import os
 import numpy as np
-from scapy.all import rdpcap,wrpcap,Ether, IP, TCP, UDP, ICMP, PcapReader, PcapWriter, Raw
-from TCP_generator import generate_tcp_handshake,generate_tcp_close
+from rules.protocol_rules import PROTOCOL_RULES
 
-# ---------------------------
-# Load protocol model
-# ---------------------------
+class Generator:
+    protocol = ""
+    registry = None
+    flows_model = None
+    sequences_model = None
+    sequences_model = None
 
-def load_models(model_file):
-    with open(model_file) as f:
-        return json.load(f)
+    def __init__(self,protocol,registry):
+        self.registry = registry
+        self.protocol = protocol
+        self.flows_model = pickle.load(open(f"models/flow_models/{self.protocol}_flow.pkl","rb"))
+        self.generator = self.registry.get_generator_handler(self.protocol)
+    # def __init__(self,registry):
+    #     self.registry = registry
+    #     self.flows_model = pickle.load(open(f"models/flow_models/{self.protocol}_flow.pkl","rb"))
+    #     self.generator = self.registry.get_generator_handler(self.protocol)
+    #     print("NEED SET PROTOCOL")
 
+    def set_protocoL(self,protocol):
+        self.protocol = protocol
+        self.flows_model = pickle.load(open(f"models/flow_models/{protocol}_flow.pkl","rb"))
+        self.generator = self.registry.get_generator_handler(protocol)
 
-# ---------------------------
-# Sample value from distribution
-# ---------------------------
+    def generate_flows_features(self,num_flows):
 
-def sample(stat):
+        model = pickle.load(open(f"models/flow_models/{self.protocol}_flow.pkl","rb"))
+        X_sample = model.sample(num_flows)
 
-    mean = stat["mean"]
-    std = stat["std"]
 
-    if std == 0:
-        return mean
+        rules = PROTOCOL_RULES[self.protocol]
 
-    value = np.random.normal(mean, std)
+        df = pd.DataFrame(X_sample, columns=[
+            "flow_duration",
+            "packet_count",
+            "avg_packet_size",
+        ])
+        df["flow_duration"] = np.expm1(df["flow_duration"]).abs()
 
-    value = max(stat["min"], value)
-    value = min(stat["max"], value)
+        df["packet_count"] = np.expm1(df["packet_count"]).abs().astype(int).clip(*rules["packet_count"])
+        # df["packet_count"] = np.expm1(np.clip(df["packet_count"], 0, 10)).astype(int).clip(*rules["packet_count"])
 
-    return value
+        df["avg_packet_size"] = np.expm1(df["avg_packet_size"]).clip(*rules["packet_size"])
 
-def random_payload(size):
-    return bytes(random.getrandbits(8) for _ in range(int(size)))
-def sample_int(stat):
-    return int(sample(stat))
-# ---------------------------
-# Generate random IP
-# ---------------------------
+        df["packet_rate"] = df["packet_count"] / df["flow_duration"]
 
-def random_ip():
+        df["iat_mean"] = df["flow_duration"] / df["packet_count"]
 
-    return f"192.168.{random.randint(0,10)}.{random.randint(2,200)}"
+        return df
+    
+    def generate_sequences_features(self,packet_count):
+        df = self.generator.generate_sequences(int(packet_count))
+        return df
+    
+    def export_pcap(self,all_lows,output_path):
+        self.generator.to_pcap(all_lows,output_path)
 
 
-# ---------------------------
-# Generate one TCP conversation
-# ---------------------------
 
-def generate_tcp_flow(model, protocol="HTTP"):
 
-    packets = []
-
-    src = random_ip()
-    dst = f"10.0.0.{random.randint(2,200)}"
-
-    sport = random.randint(40000,60000)
-
-    dport = random.choices(
-        list(model["ports"].keys()),
-        weights=model["ports"].values()
-    )[0]
-
-    dport = int(dport)
-
-    seq_client = random.randint(1000,50000)
-    seq_server = random.randint(1000,50000)
-
-    t = 0
-
-    # TCP handshake
-    handshake, seq_client, seq_server, t = generate_tcp_handshake(
-        src, dst, sport, dport, t
-    )
-
-    packets.extend(handshake)
-
-    # -----------------------
-    # Flow parameters
-    # -----------------------
-
-    packet_count = max(3, sample_int(model["packet_count"]))
-    avg_size = sample_int(model["avg_packet_size"])
-    iat = model["iat_mean"]["mean"]
-
-    direction_ratio = model["direction_ratio"]
-
-    # -----------------------
-    # Generate packets
-    # -----------------------
-
-    for i in range(packet_count):
-
-        t += max(0.0001, np.random.normal(iat, model["iat_std"]["mean"]))
-
-        size = max(20, int(np.random.normal(avg_size, model["std_packet_size"]["mean"])))
-
-        payload = Raw(load=random_payload(size))
-
-        # direction decision
-        if random.random() < direction_ratio:
-
-            pkt = IP(src=src,dst=dst)/TCP(
-                sport=sport,
-                dport=dport,
-                flags="PA",
-                seq=seq_client,
-                ack=seq_server
-            )/payload
-
-            pkt.time = t
-            packets.append(pkt)
-
-            seq_client += size
-
-        else:
-
-            pkt = IP(src=dst,dst=src)/TCP(
-                sport=dport,
-                dport=sport,
-                flags="PA",
-                seq=seq_server,
-                ack=seq_client
-            )/payload
-
-            pkt.time = t
-            packets.append(pkt)
-
-            seq_server += size
-
-    # -----------------------
-    # ACK sync
-    # -----------------------
-
-    t += 0.001
-
-    ack = IP(src=src,dst=dst)/TCP(
-        sport=sport,
-        dport=dport,
-        flags="A",
-        seq=seq_client,
-        ack=seq_server
-    )
-
-    ack.time = t
-    packets.append(ack)
-
-    # -----------------------
-    # TCP close
-    # -----------------------
-
-    close_packets = generate_tcp_close(
-        src, dst, sport, dport, seq_client, seq_server, t+1
-    )
-
-    packets.extend(close_packets)
-
-    return packets
-
-
-# ---------------------------
-# Generate many flows
-# ---------------------------
-
-def generate_traffic(model_file, protocol, flows, output):
-
-    models = load_models(model_file)
-
-    all_packets = []
-
-    current_time = 0
-
-    for i in range(flows):
-
-        flow_packets = generate_tcp_flow(models[protocol], protocol)
-
-        # shift time
-        for p in flow_packets:
-            p.time += current_time
-
-        all_packets.extend(flow_packets)
-
-        current_time += random.uniform(0.5,2)
-
-    wrpcap(output, all_packets)
-
-    print("PCAP generated:", output)
-
-
-
-if __name__ == "__main__":
-    generate_traffic(
-    "models/protocol_models.json",
-    "HTTP",
-    20,
-    "generated_http_realistic.pcap"
-)

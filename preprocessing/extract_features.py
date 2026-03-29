@@ -106,7 +106,7 @@ def extract_packet_sequences(flows, output_csv):
 
             
             feature_map = {}
-            basic_feat, last_time = extract_basic_sequences_features(pkt,last_time,key_dict,protocol)
+            basic_feat, last_time = extract_basic_sequences_features(pkt,last_time,key_dict)
             # merge basic features
             feature_map.update(basic_feat)
 
@@ -131,7 +131,7 @@ def extract_packet_sequences(flows, output_csv):
     # -----------------------------
     # WRITE CSV
     # -----------------------------
-    extract_dataset_file(protocol,seq_fields,rows)
+    extract_dataset_file(protocol=protocol,fields=seq_fields,data=rows,output_csv=output_csv)
 
 from stage_extract import extract_stages_sequences
 
@@ -139,21 +139,19 @@ from stage_extract import extract_stages_sequences
 # Main
 # -----------------------------
 if __name__ == "__main__":
-    protocol = "http"
+    protocol = "dhcp"
 
     input_pcap = f"data/{protocol}_pcap.pcap"
 
     flows = build_flows(input_pcap)
 
     flows = clean_flows(flows)
-   
-    extract_stages_sequences(protocol,flows,f"dataset/{protocol}_handshake_flow_dataset.csv")
-    # extract_features(
-    #     flows,
-    #     f"dataset/{protocol}_flow_dataset.csv"
-    # )
-    # extract_packet_sequences(
-    #     flows,
-    #     f"dataset/{protocol}_sequences_dataset.csv"
-    # )
+
+    extract_features(flows,f"dataset/{protocol}_flow_dataset.csv")
+    
+    have_stages = PROTOCOL_RULES[protocol].get("stages")
+    if have_stages:
+        extract_stages_sequences(protocol,flows,f"dataset/{protocol}_handshake_flow_dataset.csv")
+    else:
+        extract_packet_sequences(flows=flows,output_csv=f"dataset/{protocol}_sequences_dataset.csv")
   

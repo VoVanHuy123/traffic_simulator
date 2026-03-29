@@ -38,7 +38,6 @@ def extract_tcp_stage_sequences(protocol,flows, output_csv):
             continue
 
         seq_fields = PROTOCOL_RULES[protocol]["csv_sequence_fields"]
-        stages = PROTOCOL_RULES[protocol].get("stages")
 
     
         stage_pkts = get_pkt_by_tcp_stage(protocol,flow)
@@ -80,7 +79,4 @@ def extract_tcp_stage_sequences(protocol,flows, output_csv):
         if has_any_stage:
             flow_id += 1
 
-    # -----------------------------
-    # WRITE CSV
-    # -----------------------------
     extract_dataset_file(protocol,seq_fields,rows,stages,None)

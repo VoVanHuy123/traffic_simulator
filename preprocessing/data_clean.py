@@ -279,17 +279,6 @@ def validate_protocol_flow(flow, rules):
     # -------------------------
     elif proto == "dns":
 
-        # has_query = False
-        # has_response = False
-
-        # for pkt in packets:
-        #     if pkt.haslayer("DNS"):
-        #         if pkt["DNS"].qr == 0:
-        #             has_query = True
-        #         else:
-        #             has_response = True
-
-        # return has_query and has_response
         ids = {}
 
         for pkt in packets:
@@ -342,15 +331,7 @@ def validate_protocol_flow(flow, rules):
             if not ((flags & 0x02) and not (flags & 0x10)):
                 return False
 
-        # # check if have SYN
-        # has_syn = False
-        # for pkt in packets:
-        #     if pkt.haslayer("TCP"):
-        #         if pkt["TCP"].flags & 0x02:
-        #             has_syn = True
-        #             break
-
-        # return has_syn
+        
 
     return True
 
@@ -492,6 +473,8 @@ def extract_flag(pkt):
     # ARP
     if pkt.haslayer("ARP"):
         feature_map["arp_opcode"] = pkt["ARP"].op
+    
+    return feature_map
 
 
 def filter_valid_ack( packets):
@@ -656,4 +639,4 @@ def extract_dataset_file(protocol,fields,data,stages=None,output_csv=None):
             
             writer.writerows(data)
 
-        print("Handshake dataset extracted")
+        print("Dataset extracted")

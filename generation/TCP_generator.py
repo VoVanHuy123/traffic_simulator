@@ -6,89 +6,51 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 import numpy as np
 import pandas as pd
+import random
 from scapy.all import wrpcap,TCP,IP,Raw
 import joblib
 from .base_generator import BaseFlowGenerator
-from rules.protocol_rules import PROTOCOL_RULES
+from rules.protocol_rules import PROTOCOL_RULES,HTTP
 from preprocessing.data_clean import filter_valid_ack
 
 
 class TCPFlowGenerator(BaseFlowGenerator):
 
-    def __init__(self, protocol, model_dir="models/sequences_models"):
-        self.protocol = protocol
-        self.model_dir = model_dir
-        self.stages = PROTOCOL_RULES[protocol].get("stages")
-
-        self.hmm = None
-        self.inv_state_map = None
-
-    def set_model(self, stage=None):
-        if stage:
-            base = f"{self.model_dir}/{self.protocol}/{stage}/{self.protocol}_{stage}"
-        else:
-            base = f"{self.model_dir}/{self.protocol}/{self.protocol}"
-
-        self.hmm = joblib.load(f"{base}_hmm.pkl")
-        self.inv_state_map = joblib.load(f"{base}_inv_state_map.pkl")
-
+    protocol = "tcp"
+    stages = PROTOCOL_RULES[protocol].get("stages")
     
-    # DECODE BIN → VALUE
-    def decode_packet(self, parts):
 
-        direction = int(parts[0])
-        flag = int(parts[1])
 
-        # packet_length bin → value
-        length_bin = int(parts[2])
-        length_map = {
-            0: np.random.randint(40, 70),
-            1: np.random.randint(70, 100),
-            2: np.random.randint(100, 300),
-            3: np.random.randint(300, 1500)
-        }
+    # def decode_packet(self, parts):
 
-        # iat bin → value
-        iat_bin = int(parts[3])
-        iat_map = {
-            0: np.random.uniform(0.000001, 0.0001),
-            1: np.random.uniform(0.0001, 0.01),
-            2: np.random.uniform(0.01, 0.1),
-            3: np.random.uniform(0.1, 1)
-        }
+    #     direction = int(parts[0])
+    #     flag = int(parts[1])
 
-        return {
-            "direction": direction,
-            "tcp_flags": flag,
-            "packet_length": length_map[length_bin],
-            "iat": iat_map[iat_bin]
-        }
+    #     # packet_length bin → value
+    #     length_bin = int(parts[2])
+    #     length_map = {
+    #         0: np.random.randint(40, 70),
+    #         1: np.random.randint(70, 100),
+    #         2: np.random.randint(100, 300),
+    #         3: np.random.randint(300, 1500)
+    #     }
 
-    
-    # GENERATE
-    def generate(self, n_packets=10):
+    #     # iat bin → value
+    #     iat_bin = int(parts[3])
+    #     iat_map = {
+    #         0: np.random.uniform(0.000001, 0.0001),
+    #         1: np.random.uniform(0.0001, 0.01),
+    #         2: np.random.uniform(0.01, 0.1),
+    #         3: np.random.uniform(0.1, 1)
+    #     }
 
-        Xd, _ = self.hmm.sample(n_packets)
-
-        states = [self.inv_state_map[int(s[0])] for s in Xd]
-
-        rows = []
-
-        for s in states:
-            parts = s.split("_")
-            row = self.decode_packet(parts)
-            rows.append(row)
-
-        return pd.DataFrame(rows)
-
-    # def generate_sequences(self,pkt_count):
-    #     for s in self.stages:
-    #         if(pkt_count):
-    #             self.set_model(s)
-    #             df = self.generate(3)
-    #             print(f"\n=== {s} ===")
-    #             print(df)
-    def generate_sequences(self, pkt_count):
+    #     return {
+    #         "direction": direction,
+    #         "tcp_flags": flag,
+    #         "packet_length": length_map[length_bin],
+    #         "iat": iat_map[iat_bin]
+    #     }
+    def generate_sequences_by_stages(self, pkt_count):
 
         rules = PROTOCOL_RULES.get(self.protocol)
         stages = rules.get("stages")
@@ -177,13 +139,10 @@ class TCPFlowGenerator(BaseFlowGenerator):
             pkt["tcp_flags"] = handshake[i]["tcp_flags"]
             fixed.append(pkt)
     
-    def fix_data_order(self, df):
-
+    def mov_first_ack_to_bottom(self, df):
         if df is None or df.empty:
             return df
-
         packets = df.to_dict("records")
-
         # If the first packet is ACK (16) → move to the end
         if packets[0]["tcp_flags"] == 16:
             first = packets.pop(0)
@@ -191,52 +150,83 @@ class TCPFlowGenerator(BaseFlowGenerator):
 
         return pd.DataFrame(packets)
     
-    def re_pos_data_stage(self,pkts):
+    def interleave_df_by_packet_length(self,df_list):
+    
+        # Sort by average packet length
+        df_list = sorted(df_list, key=lambda df: df["packet_length"])
+
+        n = len(df_list)
+        mid = n // 2
+
+        left = df_list[:mid]
+        right = df_list[mid:]
+
+        result = []
+
+        # ---- Left processing ----
+        i = 0
+        while i < len(left):
+            result.append(left[i])
+
+            if i + 2 < len(left):
+                result.append(left[i + 2])
+
+            if i + 1 < len(left):
+                result.append(left[i + 1])
+
+            i += 3
+
+        # ---- right processing----
+        temp = []
+        i = 0
+        while i < len(right):
+            if i + 1 < len(right):
+                temp.append(right[i + 1])
+
+            temp.append(right[i])
+
+            if i + 2 < len(right):
+                temp.append(right[i + 2])
+
+            i += 3
+
+        result.extend(temp)
+
+        return result
+    def arrange_24_16_alternately(self,pkts):
         fixed= []
         data_24 = [pkt for pkt in pkts if pkt["tcp_flags"] == 24]
+        data_24 = self.interleave_df_by_packet_length(data_24)
         data_16 = [pkt for pkt in pkts if pkt["tcp_flags"] == 16]
 
         i, j = 0, 0
         turn_24 = True   # bắt đầu bằng 24
 
         while i < len(data_24) or j < len(data_16):
-
             
-            # ƯU TIÊN 24
-            
+            # ƯU TIÊN 24           
             if turn_24 and i < len(data_24):
                 pkt = data_24[i]
                 pkt["direction"] = 0 if i % 2 == 0 else 1   # optional
                 fixed.append(pkt)
                 i += 1
-
                 # nếu còn 16 thì chuyển lượt
                 if j < len(data_16):
-                    turn_24 = False
-
-            
-            # LẤY 16
-            
+                    turn_24 = False        
+            # LẤY 16    
             elif not turn_24 and j < len(data_16):
                 pkt = data_16[j]
                 pkt["direction"] = 1 if j % 2 == 0 else 0   # optional
                 fixed.append(pkt)
                 j += 1
-
-                turn_24 = True
-
-            
+                turn_24 = True           
             # HẾT 16 → spam 24
-            
             elif i < len(data_24):
                 pkt = data_24[i]
                 pkt["direction"] = 0
                 fixed.append(pkt)
                 i += 1
-
-            
-            # HẾT 24 → lấy 16
-            
+              # HẾT 24 → lấy 16           
             elif j < len(data_16):
                 pkt = data_16[j]
                 pkt["direction"] = 1
@@ -255,9 +245,7 @@ class TCPFlowGenerator(BaseFlowGenerator):
 
             
             # Nếu là ACK
-            
             if flags == 16:
-
                 # duplicate ACK cùng direction
                 if prev_flags == 16 and prev_direction == direction:
                     continue
@@ -266,9 +254,7 @@ class TCPFlowGenerator(BaseFlowGenerator):
                 if prev_flags != 24:
                     continue
 
-            
             # giữ packet
-            
             filtered.append(row)
 
             prev_flags = flags
@@ -276,7 +262,7 @@ class TCPFlowGenerator(BaseFlowGenerator):
 
         return filtered
     
-    def re_direction(self,fixed,pkts):
+    def re_direction_0_1_in_turn(self,fixed,pkts):
         i = 0
         while i < len(pkts):
                 req = pkts[i]
@@ -298,11 +284,46 @@ class TCPFlowGenerator(BaseFlowGenerator):
                     break
         
     
-    
+
 class HTTPFlowGenerator(TCPFlowGenerator):
 
-    
-    
+    protocol = "http"
+    def fix_direction_24_alternate(self,fixed,pkts):
+        toggle = 0  # bắt đầu từ client (request)
+        if pkts[0]["tcp_flags"] == 24:
+            pkts[0]["direction"] == 0
+        for pkt in pkts:
+            if pkt["tcp_flags"] == 24:
+                pkt["direction"] = 1
+                
+                # pkt["direction"] = toggle
+                # toggle = 1 - toggle
+
+            if pkt["tcp_flags"] == 16:
+                pkt["direction"] = 1
+                # pkt["direction"] = toggle
+            fixed.append(pkt)
+    def fix_direction_24(self,fixed,pkts):
+        if not pkts:
+            return
+
+        found_first_24 = False
+        fixed = []
+
+        if pkts[0]["tcp_flags"] == 24:
+            pkts[0]["direction"] = 0
+        if pkts[1]["tcp_flags"] == 16:
+            pkts[1]["direction"] = 1
+
+        for pkt in pkts[2:]:
+            if pkt["tcp_flags"] == 24:
+                    pkt["direction"] = 1  
+            elif pkt["tcp_flags"] == 16:
+                pkt["direction"] = 0
+
+            fixed.append(pkt)
+
+
     def apply_fsm(self, results_dict):
 
         fixed = []
@@ -311,47 +332,66 @@ class HTTPFlowGenerator(TCPFlowGenerator):
         # 1. HANDSHAKE
         self.fsm_handshake_pkts(fixed,results_dict) 
        
-
-        
         # 2. DATA (FIX ORDER + FSM)
         
         data_df = results_dict["data"]
-        data_df = self.fix_data_order(data_df)
+        data_df = self.mov_first_ack_to_bottom(data_df)
         if data_df is not None:
             pkts = data_df.to_dict("records")
-            pkts = self.re_pos_data_stage(pkts)
+            pkts = self.arrange_24_16_alternately(pkts)
             pkts = self.remove_duplicate_ack(pkts)
-            self.re_direction(fixed,pkts)
+            self.re_direction_0_1_in_turn(fixed,pkts)
+            self.fix_direction_24(fixed,pkts)
 
 
-        
         # 3. CLOSING
-        
         if results_dict["closing"] is not None:
 
-            fixed.append({
-                "direction": 0,
-                "tcp_flags": 17,
-                "packet_length": np.random.randint(40, 80),
-                "iat": np.random.uniform(0.00001, 0.01)
-            })
+            closing =  results_dict["closing"]
+            if isinstance(closing, pd.DataFrame):
+                closing = closing.to_dict("records")
 
-            fixed.append({
-                "direction": 1,
-                "tcp_flags": 16,
-                "packet_length": np.random.randint(40, 80),
-                "iat": np.random.uniform(0.00001, 0.01)
-            })
+            for d in closing:
+                fixed.append(d)
+            # fixed.append({
+            #     "direction": 0,
+            #     "tcp_flags": 17,
+            #     "packet_length": np.random.randint(40, 80),
+            #     "iat": np.random.uniform(0.00001, 0.01)
+            # })
+
+            # fixed.append({
+            #     "direction": 1,
+            #     "tcp_flags": 16,
+            #     "packet_length": np.random.randint(40, 80),
+            #     "iat": np.random.uniform(0.00001, 0.01)
+            # })
 
         return pd.DataFrame(fixed)
 
     
-    def generate_protocol_sequences(self, pkt_count=10):
-        df,dict = self.generate_sequences(pkt_count)
+    def generate_sequences(self, pkt_count=10):
+        df,dict = self.generate_sequences_by_stages(pkt_count)
         df = self.apply_fsm(dict)
         return df
     
-    
+    def random_http_request(self):
+        i = random.uniform(1,10)
+        url = random.choice(HTTP["urls"])
+        host = random.choice(HTTP["hosts"])
+
+        req = f"GET {url} HTTP/1.1\r\nHost: {host}\r\n\r\n"
+        return req.encode()
+
+    def random_http_response(self):
+        status = random.choice(HTTP["status_codes"])
+        body = random.choice(HTTP["bodies"])
+
+        headers = b"HTTP/1.1 " + status + b"\r\n"
+        headers += f"Content-Length: {len(body)}\r\n".encode()
+        headers += b"\r\n"
+
+        return headers + body
 
 
     def to_pcap(self, all_df, filename="output.pcap"):
@@ -387,7 +427,8 @@ class HTTPFlowGenerator(TCPFlowGenerator):
             # LOOP PACKETS
             
             for row in df.to_dict("records"):
-
+                request_sent = False
+                response_sent = False
                 time += float(row["iat"])
 
                 direction = int(row["direction"])
@@ -446,9 +487,46 @@ class HTTPFlowGenerator(TCPFlowGenerator):
 
                 pkt = IP(src=sip, dst=dip) / tcp_layer
 
-                # ✅ ADD PAYLOAD (FIX LEN=40)
+                #  ADD PAYLOAD (FIX LEN=40)
                 if payload_size > 1:
-                    pkt = pkt / Raw(load=b"A" * payload_size)
+
+                    if direction == 0:
+                        base = self.random_http_request()
+                    else:
+                        base = self.random_http_response()
+
+                    # resize payload cho khớp packet_length
+                    if len(base) < payload_size:
+                        payload = base + b"A" * (payload_size - len(base))
+                    else:
+                        payload = base[:payload_size]
+
+                    pkt = pkt / Raw(load=payload)
+                # if payload_size > 1:
+
+                #     # CLIENT → chỉ gửi 1 request
+                #     if direction == 0:
+                #         if not request_sent:
+                #             base = self.random_http_request()
+                #             request_sent = True
+                #         else:
+                #             continue  # ❗ bỏ packet dư
+
+                #     # SERVER → response + continuation
+                #     else:
+                #         if not response_sent:
+                #             base = self.random_http_response()
+                #             response_sent = True
+                #         else:
+                #             base = b"A" * payload_size  # continuation
+
+                #     # resize
+                #     if len(base) < payload_size:
+                #         payload = base + b"A" * (payload_size - len(base))
+                #     else:
+                #         payload = base[:payload_size]
+
+                #     pkt = pkt / Raw(load=payload)
 
                 pkt.time = time
                 packets.append(pkt)
@@ -468,8 +546,6 @@ class HTTPFlowGenerator(TCPFlowGenerator):
                     # client sẽ ACK lại server
                     client_ack = server_next_seq
 
-        
         # SAVE PCAP
-        
         wrpcap(filename, packets)
-        print(f"✅ Saved {filename}")
+        print(f" Saved {filename}")

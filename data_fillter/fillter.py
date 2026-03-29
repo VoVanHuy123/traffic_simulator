@@ -5,87 +5,94 @@ import subprocess
 import re
 
  
-def filter_packets_pcap(
-    input_pcap,
-    output_pcap,
-    protocol=None,
-    src_ip=None,
-    dst_ip=None,
-    src_port=None,
-    dst_port=None,
-    limit_packets=None
-):
 
-    filters = []
+class PcapFillter:
+    def __init__(self):
+        pass
+    def filter_packets_pcap(self,
+        input_pcap,
+        output_pcap,
+        protocol=None,
+        src_ip=None,
+        dst_ip=None,
+        src_port=None,
+        dst_port=None,
+        limit_packets=None
+    ):
 
-    # protocol filter
-    if protocol:
-        filters.append(protocol.lower())
+        filters = []
 
-    # IP filter
-    if src_ip:
-        filters.append(f"ip.src == {src_ip}")
+        # protocol filter
+        if protocol:
+            filters.append(protocol.lower())
 
-    if dst_ip:
-        filters.append(f"ip.dst == {dst_ip}")
+        # IP filter
+        if src_ip:
+            filters.append(f"ip.src == {src_ip}")
 
-    # port filter
-    port_filter = []
+        if dst_ip:
+            filters.append(f"ip.dst == {dst_ip}")
 
-    if src_port:
-        port_filter.append(f"tcp.srcport == {src_port} || udp.srcport == {src_port}")
+        # port filter
+        port_filter = []
 
-    if dst_port:
-        port_filter.append(f"tcp.dstport == {dst_port} || udp.dstport == {dst_port}")
+        if src_port:
+            port_filter.append(f"tcp.srcport == {src_port} || udp.srcport == {src_port}")
 
-    if port_filter:
-        filters.append("(" + " || ".join(port_filter) + ")")
+        if dst_port:
+            port_filter.append(f"tcp.dstport == {dst_port} || udp.dstport == {dst_port}")
 
-    display_filter = " && ".join(filters)
+        if port_filter:
+            filters.append("(" + " || ".join(port_filter) + ")")
 
-    print("Display filter:", display_filter)
+        display_filter = " && ".join(filters)
 
-    cmd = ["tshark", "-r", input_pcap]
+        print("Display filter:", display_filter)
 
-    if display_filter:
-        cmd += ["-Y", display_filter]
+        cmd = ["tshark", "-r", input_pcap]
 
-    # packet limit
-    if limit_packets:
-        cmd += ["-c", str(limit_packets)]
+        if display_filter:
+            cmd += ["-Y", display_filter]
 
-    cmd += ["-w", output_pcap]
+        # packet limit
+        if limit_packets:
+            cmd += ["-c", str(limit_packets)]
 
-    subprocess.run(cmd)
+        cmd += ["-w", output_pcap]
 
-
-def count_packets(pcap_file):
-    cmd = ["capinfos", pcap_file]
-
-    result = subprocess.run(cmd, capture_output=True, text=True)
-
-    match = re.search(r"Number of packets:\s+(\d+)", result.stdout)
-
-    if match:
-        return int(match.group(1))
-    else:
-        raise Exception("Cannot detect packet count")
+        subprocess.run(cmd)
 
 
-def split_pcap(input_pcap, output_prefix, ratio):
+    def count_packets(self,pcap_file):
+        cmd = ["capinfos", pcap_file]
 
-    total = count_packets(input_pcap)
+        result = subprocess.run(cmd, capture_output=True, text=True)
 
-    target = int(total * ratio)
+        match = re.search(r"Number of packets:\s+(\d+)", result.stdout)
 
-    print("Total packets:", total)
-    print("Extract packets:", target)
+        if match:
+            return int(match.group(1))
+        else:
+            raise Exception("Cannot detect packet count")
 
-    filter_packets_pcap(input_pcap, f"{output_prefix}.pcap", limit_packets=target)
+
+    def split_pcap(self,input_pcap, output_prefix, ratio):
+
+        total = self.count_packets(input_pcap)
+
+        target = int(total * ratio)
+
+        print("Total packets:", total)
+        print("Extract packets:", target)
+
+        self.filter_packets_pcap(input_pcap, f"{output_prefix}.pcap", limit_packets=target)
 
 
 if __name__ == "__main__":
-    protocol = "http1"
-    raw_packet_path = "raw_data/Friday-WorkingHours.pcap"
-    output_pcap = f"data/{protocol}_pcap.pcap" 
-    filter_packets_pcap(raw_packet_path, output_pcap, protocol="tcp && tcp.port == 80")
+    protocol = "dhcp"
+    raw_packet_path = "data/my_com_dhcp.pcapng"
+    # raw_packet_path = "raw_data/Friday-WorkingHours.pcap"
+    output_pcap = f"data/dhcp/{protocol}1_pcap.pcap" 
+    fillter = PcapFillter()
+    fillter.filter_packets_pcap(raw_packet_path, output_pcap, protocol="dhcp")
+    

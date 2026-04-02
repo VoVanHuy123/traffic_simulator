@@ -109,7 +109,7 @@ class Extractor:
             row = [feature_dict.get(f, None) for f in csv_feature_fields]
 
             rows.append(row)
-        self.exporter.export_dataset(rows,csv_feature_fields,output_csv_path)
+        self.exporter.export_dataset(rows,csv_feature_fields,output_csv_path,flow_id=False)
             
     def extract_sequences_features(self,flows, output_csv):
         rows = []

@@ -18,8 +18,8 @@ class FlowTrainer:
         ]
     def set_protocol(self,protocol):
         self.protocol = protocol
-        self.dataset_path = f"dataset/{protocol}_flow_dataset.csv"
-        self.model_path = f"dataset/{protocol}_flow_dataset.csv"
+        self.dataset_path = f"dataset/{protocol}/{protocol}_flow_dataset.csv"
+        self.model_path = f"models/flow_models/{protocol}_flow_dataset.csv"
     def set_dataset_path(self,path):
         self.dataset_path = path
     def set_model_path(self,path):
@@ -27,6 +27,7 @@ class FlowTrainer:
 
     def model_train(self):
         df = pd.read_csv(self.dataset_path)
+        print(self.dataset_path)
         self.model.fit(df[self.features])
         with open(self.model_path, "wb") as f:
             pickle.dump(self.model, f)

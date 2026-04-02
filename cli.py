@@ -45,7 +45,7 @@ def extract(protocol):
 
     extractor.extract_flow_features(
         flows,
-        f"dataset/{protocol}_flow_dataset.csv"
+        f"dataset/{protocol}/{protocol}_flow_dataset.csv"
     )
 
     extractor.extract_sequences_by_stages(
@@ -56,8 +56,8 @@ def train(protocol):
     # train flow
     flows_trainer = FlowTrainer(
         protocol=protocol,
-        dataset_path=f"dataset/{protocol}_flow_dataset.csv",
-        model_path=f"dataset/{protocol}_flow_dataset.csv"
+        dataset_path=f"dataset/{protocol}/{protocol}_flow_dataset.csv",
+        model_path = f"models/flow_models/{protocol}_flow.pkl"
     )
     flows_trainer.model_train()
 
@@ -72,8 +72,10 @@ def train(protocol):
     else:
         sequences_trainer.train()
 
-def fillter(protocol,message):
+def fillter(protocol,message,input_path=None):
     raw_packet_path = f"raw_data/{protocol}_dhcp.pcapng"
+    if input_path:
+        raw_packet_path = input_path
     output_pcap = f"data/{protocol}_pcap.pcap" 
     fillter = PcapFillter()
     fillter.filter_packets_pcap(raw_packet_path, output_pcap, protocol=message)
@@ -95,6 +97,7 @@ def main():
     gen_parser.add_argument(
         "--n",
         "--num",
+        dest="num",
         type=int,
         default=10)
     
@@ -120,19 +123,25 @@ def main():
     fillter_parser = subparsers.add_parser("fillter")
     fillter_parser.add_argument(
         "--m",
-        "--messeage",
+        "--message",
         required=True,
+        dest="message",
         help="Like tshark"
     )
     fillter_parser.add_argument(
         "--l",
         "--limit",
+        dest="limit"
     )
     fillter_parser.add_argument(
         "--p", "--protocol",
         dest="protocol",
         required=True,
         help="Protocol name (http, dns, icmp...)"
+    )
+    fillter_parser.add_argument(
+        "--i", "--input",
+        dest="input",
     )
 
     args = parser.parse_args()
@@ -141,14 +150,18 @@ def main():
         generate_protocol(args.protocol,args.num)
         print("Generate traffic", args.protocol)
 
-    elif args.command == "train":
-        print("Train model", args.protocol)
-
     elif args.command == "extract":
         extract(args.protocol)
 
     elif args.command == "train":
         train(args.protocol)
+
+    elif args.command == "fillter":
+        if args.input:
+            fillter(args.protocol,args.message,args.input)
+
+        else:
+            fillter(args.protocol,args.message)
 
 
 if __name__ == "__main__":

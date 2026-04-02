@@ -89,10 +89,11 @@ class PcapFillter:
 
 
 if __name__ == "__main__":
-    protocol = "dhcp"
-    raw_packet_path = "data/my_com_dhcp.pcapng"
-    # raw_packet_path = "raw_data/Friday-WorkingHours.pcap"
-    output_pcap = f"data/dhcp/{protocol}1_pcap.pcap" 
+    # protocol = "dhcp"
+    # raw_packet_path = "data/my_com_dhcp.pcapng"
+    raw_packet_path = "raw_data/raw_pcap_1.pcap"
+    # output_pcap = f"data/dhcp/{protocol}1_pcap.pcap" 
     fillter = PcapFillter()
-    fillter.filter_packets_pcap(raw_packet_path, output_pcap, protocol="dhcp")
+    # fillter.filter_packets_pcap(raw_packet_path, output_pcap, protocol="dhcp")
+    fillter.split_pcap(raw_packet_path,"raw_data_ra", 0.2)
     

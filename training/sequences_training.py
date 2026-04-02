@@ -151,5 +151,5 @@ class SequenceHMMTrainer:
             return
 
         for s in self.stages:
-            self.train(s, f"dataset/{self.protocol}_{s}_sequences_dataset.csv")
+            self.train(s, f"dataset/{self.protocol}/{self.protocol}_{s}_sequences_dataset.csv")
 

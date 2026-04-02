@@ -1,4 +1,4 @@
-from scapy.all import IP, TCP, UDP, BOOTP,ICMP
+from scapy.all import IP, TCP, UDP, BOOTP,ICMP,IPv6
 
 
 class PacketParser:
@@ -95,8 +95,11 @@ class PacketParser:
             })
         
         # IP
-        elif pkt.haslayer(IP):
-            ip = pkt[IP]
+        # elif pkt.haslayer(IP):
+        #     ip = pkt[IP]
+        elif pkt.haslayer(IP) or pkt.haslayer(IPv6):
+
+            ip = pkt[IP] if pkt.haslayer(IP) else pkt[IPv6]
 
             data["src_ip"] = ip.src
             data["dst_ip"] = ip.dst

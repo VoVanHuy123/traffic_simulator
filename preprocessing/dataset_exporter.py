@@ -3,13 +3,14 @@ import csv
 
 class DatasetExporter:
 
-    def export_dataset(self, data, fields, output):
+    def export_dataset(self, data, fields, output, flow_id = True):
 
         with open(output, "w", newline="") as f:
             writer = csv.writer(f)
-
+            header = []
             # header
-            header = ["flow_id"]
+            if flow_id:
+                header = ["flow_id"]
 
             
             header += list(fields,)
@@ -23,7 +24,7 @@ class DatasetExporter:
     def export_dataset_by_stage(self,protocol,data, fields,stages):
         if stages:
             for s in stages:
-                with open(f"dataset/{protocol}_{s}_sequences_dataset.csv", "w", newline="") as f:
+                with open(f"dataset/{protocol}/{protocol}_{s}_sequences_dataset.csv", "w", newline="") as f:
 
                     writer = csv.writer(f)
 

@@ -8,6 +8,7 @@ import pandas as pd
 import os
 import numpy as np
 from rules.protocol_rules import PROTOCOL_RULES
+from preprocessing.dataset_exporter import DatasetExporter
 
 def generate_flow(protocol,sample):
 
@@ -22,13 +23,15 @@ def generate_flow(protocol,sample):
         "flow_duration",
         "packet_count",
         "avg_packet_size",
+        "total_bytes"
+        
     ])
-    df["flow_duration"] = np.expm1(df["flow_duration"]).abs()
+    # df["flow_duration"] = np.expm1(df["flow_duration"]).abs()
 
-    df["packet_count"] = np.expm1(df["packet_count"]).abs().astype(int).clip(*rules["packet_count"])
-    # df["packet_count"] = np.expm1(np.clip(df["packet_count"], 0, 10)).astype(int).clip(*rules["packet_count"])
+    # df["packet_count"] = np.expm1(df["packet_count"]).abs().astype(int).clip(*rules["packet_count"])
+    # # df["packet_count"] = np.expm1(np.clip(df["packet_count"], 0, 10)).astype(int).clip(*rules["packet_count"])
 
-    df["avg_packet_size"] = np.expm1(df["avg_packet_size"]).clip(*rules["packet_size"])
+    # df["avg_packet_size"] = np.expm1(df["avg_packet_size"]).clip(*rules["packet_size"])
 
     df["packet_rate"] = df["packet_count"] / df["flow_duration"]
 
@@ -36,4 +39,12 @@ def generate_flow(protocol,sample):
 
     return df
 
+
+if __name__ == "__main__":
+    protocol = "http"
+    sample = 100
+    df = generate_flow(protocol,sample)
+    exporter = DatasetExporter()
+    exporter.export_dataset(df.values, df.columns, f"output/test/{protocol}_generated_flows.csv")
+    print(df)
 

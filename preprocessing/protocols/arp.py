@@ -23,7 +23,7 @@ class ARPHandler(ProtocolHandler):
     def is_session_start(self, pkt):
         return pkt.haslayer("ARP") and pkt["ARP"].op == 1
 
-    def validate_flow(self, flow):
+    def validate_flow(self, flow,rules=None):
         return True
 
     def extract_flags(self, pkt):

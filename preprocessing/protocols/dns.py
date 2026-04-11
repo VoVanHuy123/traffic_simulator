@@ -21,7 +21,7 @@ class DNSHandler(ProtocolHandler):
     def is_session_start(self, pkt):
         return pkt["DNS"].qr == 0
 
-    def validate_flow(self, flow):
+    def validate_flow(self, flow,rules=None):
 
         has_q = False
         has_r = False

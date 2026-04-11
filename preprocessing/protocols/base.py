@@ -17,7 +17,7 @@ class ProtocolHandler:
     def is_session_start(self, pkt):
         return False
 
-    def validate_flow(self, flow):
+    def validate_flow(self, flow,rules=None):
         return True
 
     def extract_flags(self, pkt):

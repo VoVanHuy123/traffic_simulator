@@ -32,8 +32,11 @@ def generate_protocol(protocol, sample):
     
     generator.export_pcap(all_flows,f"output/{protocol}_flow.pcap")
 
-def extract(protocol):
+def extract(protocol,input_path=None):
     input_pcap_path = f"data/{protocol}_pcap.pcap"
+    rules = PROTOCOL_RULES[protocol]
+    if input_path:
+        input_pcap_path = input_path
 
     builder = FlowBuilder(ExtractRegistry)
     flows = builder.build(input_pcap_path)
@@ -43,15 +46,26 @@ def extract(protocol):
 
     extractor = Extractor(protocol)
 
-    extractor.extract_flow_features(
-        flows,
-        f"dataset/{protocol}/{protocol}_flow_dataset.csv"
-    )
+    output_path = f"dataset/{protocol}/{protocol}_flow_dataset.csv"
+    sequnces_output_path = f"dataset/{protocol}/{protocol}_sequences_dataset.csv"
+    if input_path:
+        output_path = f"output/output_dataset/{protocol}_flow_dataset.csv"
+        sequnces_output_path = f"output/output_dataset/{protocol}_sequences_dataset.csv"
 
-    extractor.extract_sequences_by_stages(
-        flows,
-        "ff"
-    )
+
+    if rules.get("stages"):
+        if not input_path:
+            extractor.extract_sequences_by_stages(
+                flows,
+                output_path
+            )
+    else:
+        extractor.extract_flow_features(
+            flows,
+            sequnces_output_path
+        )
+    extractor.extract_sequences_features()
+    
 def train(protocol):
     # train flow
     flows_trainer = FlowTrainer(
@@ -109,6 +123,12 @@ def main():
         required=True,
         help="Protocol name (http, dns, icmp...)"
     )
+    extract_parser.add_argument(
+        "--path",
+        dest="path",
+        required=False,
+        help="data/...."
+    )
 
     # train command
     train_parser = subparsers.add_parser("train")
@@ -151,7 +171,10 @@ def main():
         print("Generate traffic", args.protocol)
 
     elif args.command == "extract":
-        extract(args.protocol)
+        if args.path:
+            extract(args.protocol,args.path)
+        else:
+            extract(args.protocol)
 
     elif args.command == "train":
         train(args.protocol)

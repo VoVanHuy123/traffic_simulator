@@ -86,11 +86,11 @@ class Extractor:
             total_bytes, avg_packet_size = self.extract_total_bytes_and_avg_packet_size(flow)
             flow_duration , iat_mean = self.extract_flow_diration_and_iat_mean(flow)
 
-            flow_duration = np.log1p(flow_duration)
-            packet_count = np.log1p(packet_count)
-            avg_packet_size = np.log1p(avg_packet_size)
-            iat_mean = np.log1p(iat_mean)
-            total_bytes = np.log1p(total_bytes)
+            # flow_duration = np.log1p(flow_duration)
+            # packet_count = np.log1p(packet_count)
+            # avg_packet_size = np.log1p(avg_packet_size)
+            # iat_mean = np.log1p(iat_mean)
+            # total_bytes = np.log1p(total_bytes)
 
             feature_dict = {
                 **key_dict,

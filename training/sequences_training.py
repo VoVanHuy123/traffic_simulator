@@ -17,7 +17,7 @@ class SequenceHMMTrainer:
     def __init__(self, protocol, rules, dataset_dir="dataset", model_dir="models/sequences_models"):
         self.protocol = protocol
         self.rules = rules
-        self.dataset_path = f"{dataset_dir}/{protocol}_sequences_dataset.csv"
+        self.dataset_path = f"{dataset_dir}/{protocol}/{protocol}_sequences_dataset.csv"
         self.model_dir = f"{model_dir}/{protocol}"
         self.stages = PROTOCOL_RULES[protocol].get("stages")
         self.packet_length_bin = None

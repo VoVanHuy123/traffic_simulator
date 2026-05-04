@@ -26,6 +26,7 @@ def generate_protocol(protocol, sample):
     all_flows = []
     for index, row in df_flows.iterrows():
         print(f"== flow {index +1}")
+        print(row["packet_count"])
         df = generator.generate_sequences_features(row["packet_count"])
         all_flows.append(df)
         print(df)

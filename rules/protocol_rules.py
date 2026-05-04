@@ -238,6 +238,48 @@ PROTOCOL_RULES = {
         "packet_length_bin":[70, 100, 200],
         "iat_bin":[0.0001, 0.01, 0.1],
         "evaluation_features":[ "packet_count","flow_duration","total_bytes","avg_packet_size","iat_mean"]
+    },
+    "isup": {
+        "packet_count": (4, 32),
+        "packet_size": (80, 512),
+
+        "flow_duration": (0.001, 10),
+        "iat":(0.000001, 2),
+        "flow_key": (
+            "isup_session_id",
+            "opc",
+            "dpc",
+            "cic"
+        ),
+
+        "csv_feature_fields": (
+            "packet_count", "flow_duration", "avg_packet_size","iat_mean","total_bytes"
+        ),
+        "csv_sequence_fields": (
+            "isup_msg_type",
+            "direction",
+            "packet_length",
+            "iat"
+        ),
+        "cleaning_rules": {
+            "max_flow_duration": 10,
+            "max_iat": 2,
+            "min_packets": 4,
+        },
+        "stages": ["setup", "active", "cleanup"],
+        "stage_messages": {
+            "setup": ["IAM", "ACM"],
+            "active": ["ANM"],
+            "cleanup": ["REL", "RLC"]
+        },
+        "stage_packets": {
+            "setup": 2,
+            "active": 1,
+            "cleanup": 2
+        },
+        "packet_length_bin":[100, 150, 200, 300],
+        "iat_bin":[0.001, 0.01, 0.1, 0.5, 1],
+        "evaluation_features":[ "packet_count","flow_duration","total_bytes","avg_packet_size","iat_mean"]
     }
 }
 

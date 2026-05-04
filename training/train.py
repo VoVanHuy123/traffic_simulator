@@ -8,7 +8,7 @@ from flow_training import FlowTrainer
 from sequences_training import SequenceHMMTrainer
 
 if __name__ == "__main__":
-    protocols = ["dhcp"]
+    protocols = [ "isup"]
     for proto in protocols:
         # train flow
         flows_trainer = FlowTrainer(

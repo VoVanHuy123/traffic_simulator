@@ -5,9 +5,9 @@ import numpy as np
 import pandas as pd
 
 from scapy.all import IP, wrpcap
-from scapy.contrib.isup import ISUP
+# from scapy.contrib.isup import ISUP
 from scapy.layers.sctp import SCTP, SCTPChunkData
-from scapy.contrib.m3ua import M3UA
+# from scapy.contrib.m3ua import M3UA
 
 from .base_generator import BaseFlowGenerator
 from rules.protocol_rules import PROTOCOL_RULES
@@ -27,7 +27,16 @@ ISUP_MESSAGE_CODES = {
     "SAM": 12,
     "COT": 16,
 }
-
+ISUP_MESSAGE_DIRECTION = {
+    "IAM": 0,
+    "ACM": 1,
+    "ANM": 1,
+    "REL": 0,
+    "RLC": 1,
+    "RSC": 0,
+    "SAM": 0,
+    "COT": 0,
+}
 
 def normalize_msg_type(msg):
     if isinstance(msg, str):
@@ -227,16 +236,17 @@ class ISUPFlowGenerator(BaseFlowGenerator):
             "iat": iat_map.get(iat_bin, 0.01),
         }
 
-    def build_packet(self, src_ip, dst_ip, msg_type):
+    def build_packet(self, src_ip, dst_ip, msg_type, cic ,opc=1, dpc=2):
         msg_code = normalize_msg_type(msg_type)
-        cic = random.randint(1, 60)
+
+        
 
         # ---------------- ISUP ----------------
         isup_body = build_isup_message(msg_code)
         cic_bytes = struct.pack("<H", cic)
 
         # ---------------- M3UA Protocol Data ----------------
-        m3ua_payload = build_m3ua_protocol_data(cic_bytes + isup_body, opc=1, dpc=2, sls=cic & 0x0F)
+        m3ua_payload = build_m3ua_protocol_data(cic_bytes + isup_body, opc=opc, dpc=dpc, sls=cic & 0x0F)
 
         # ---------------- M3UA Header ----------------
         m3ua_header = b"\x01\x00\x01\x01" + struct.pack("!I", len(m3ua_payload) + 8)
@@ -258,31 +268,117 @@ class ISUPFlowGenerator(BaseFlowGenerator):
 
         return pkt
 
+    # def to_pcap(self, flows, output="isup_generated.pcap"):
+    #     packets = []
+    #     now = time.time()
+        
+
+    #     if isinstance(flows, pd.DataFrame):
+    #         flows = [flows]
+
+    #     for df in flows:
+    #         client_ip = f"192.0.2.{random.randint(2,200)}"
+    #         server_ip = f"198.51.100.{random.randint(2,200)}"
+    #         cic = random.randint(1, 60)
+    #         opc_tmp = random.randint(1, 100)
+    #         dpc_tmp = random.randint(1, 100)
+        
+
+    #         for _, row in df.iterrows():
+    #             direction = int(row["direction"])
+    #             msg_type = row["isup_msg_type"]
+    #             iat = float(row["iat"])
+
+    #             if ISUP_MESSAGE_DIRECTION.get(msg_type.upper(), 0) == 0:
+    #                 opc = opc_tmp
+    #                 dpc = dpc_tmp
+    #             else:
+    #                 opc = dpc_tmp
+    #                 dpc = opc_tmp
+
+    #             now += iat
+
+    #             src = client_ip if direction == 0 else server_ip
+    #             dst = server_ip if direction == 0 else client_ip
+
+    #             pkt = self.build_packet(src, dst, msg_type,cic,opc,dpc)
+    #             pkt.time = now
+
+    #             packets.append(pkt)
+
+    #     wrpcap(output, packets)
+    #     print(f"\n✅ Saved {len(packets)} packets -> {output}")
     def to_pcap(self, flows, output="isup_generated.pcap"):
         packets = []
-        now = time.time()
+        start_time = time.time()
 
         if isinstance(flows, pd.DataFrame):
             flows = [flows]
 
-        for df in flows:
-            client_ip = f"192.0.2.{random.randint(2,200)}"
-            server_ip = f"198.51.100.{random.randint(2,200)}"
+        # ==============================
+        # INIT FLOW STATES
+        # ==============================
+        flow_states = []
 
-            for _, row in df.iterrows():
-                direction = int(row["direction"])
-                msg_type = row["isup_msg_type"]
-                iat = float(row["iat"])
+        for i,df in enumerate(flows):
+            flow_states.append({
+                "df": df.reset_index(drop=True),
+                "idx": 0,
+                "cic": random.randint(1, 60),
+                "opc_tmp": random.randint(1, 100),
+                "dpc_tmp": random.randint(1, 100),
+                "time": start_time + i * random.uniform(0.1, 0.5),
+                "client_ip": f"192.0.2.{random.randint(2,200)}",
+                "server_ip": f"198.51.100.{random.randint(2,200)}"
+            })
 
-                now += iat
+        active_flows = flow_states.copy()
 
-                src = client_ip if direction == 0 else server_ip
-                dst = server_ip if direction == 0 else client_ip
+        # ==============================
+        # INTERLEAVE
+        # ==============================
+        while active_flows:
+            i = random.randrange(len(active_flows))
+            flow = active_flows[i]
 
-                pkt = self.build_packet(src, dst, msg_type)
-                pkt.time = now
+            if flow["idx"] >= len(flow["df"]):
+                active_flows.pop(i)
+                continue
 
-                packets.append(pkt)
+            row = flow["df"].iloc[flow["idx"]]
+            flow["idx"] += 1
+
+            direction = int(row["direction"])
+            msg_type = row["isup_msg_type"]
+            iat = float(row["iat"])
+
+            # 👉 OPC / DPC theo direction ISUP
+            if ISUP_MESSAGE_DIRECTION.get(msg_type.upper(), 0) == 0:
+                opc = flow["opc_tmp"]
+                dpc = flow["dpc_tmp"]
+            else:
+                opc = flow["dpc_tmp"]
+                dpc = flow["opc_tmp"]
+
+            flow["time"] += iat
+
+            src = flow["client_ip"] if direction == 0 else flow["server_ip"]
+            dst = flow["server_ip"] if direction == 0 else flow["client_ip"]
+
+            pkt = self.build_packet(
+                src,
+                dst,
+                msg_type,
+                flow["cic"],
+                opc,
+                dpc
+            )
+
+            pkt.time = flow["time"]
+            packets.append(pkt)
+
+        # 👉 rất quan trọng
+        packets.sort(key=lambda x: x.time)
 
         wrpcap(output, packets)
         print(f"\n✅ Saved {len(packets)} packets -> {output}")
@@ -304,7 +400,7 @@ class ISUPFlowGenerator(BaseFlowGenerator):
         }
         remaining = pkt_count
 
-        # 1. SETUP (luôn có)
+        # 1. SETUP
         setup_count = stage_pkts.get("setup", 2)
         if remaining >= setup_count:
             self.set_model("setup")
@@ -313,7 +409,7 @@ class ISUPFlowGenerator(BaseFlowGenerator):
             results_dict["setup"] = df
             remaining -= setup_count
         else:
-            # Nếu không đủ cho setup, sinh bao nhiêu có thể
+            
             self.set_model("setup")
             df = self.generate(remaining)
             results.append(df)
@@ -337,7 +433,7 @@ class ISUPFlowGenerator(BaseFlowGenerator):
                 remaining -= active_count
                 has_active = True
 
-        # 3. CLEANUP (chỉ nếu có active và còn packet)
+        # 3. CLEANUP 
         if has_active and remaining > 0:
             self.set_model("cleanup")
             df = self.generate(remaining)

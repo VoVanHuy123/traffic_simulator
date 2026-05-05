@@ -25,3 +25,8 @@ Thumbs.db
 
 # Logs
 *.log
+.gitnexus
+
+# Agent
+.agent/ 
+.claude/

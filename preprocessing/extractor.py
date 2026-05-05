@@ -76,7 +76,7 @@ class Extractor:
         headers = None
         csv_feature_fields = PROTOCOL_RULES[self.protocol]["csv_feature_fields"]
 
-        for flow in flows:
+        for flow_id, flow in enumerate(flows):
             packets = sorted(flow["packets"], key=lambda x: x.time)
             protocol = flow["protocol"]
             key_dict = flow["key_dict"]
@@ -86,12 +86,6 @@ class Extractor:
             total_bytes, avg_packet_size = self.extract_total_bytes_and_avg_packet_size(flow)
             flow_duration , iat_mean = self.extract_flow_diration_and_iat_mean(flow)
 
-            # flow_duration = np.log1p(flow_duration)
-            # packet_count = np.log1p(packet_count)
-            # avg_packet_size = np.log1p(avg_packet_size)
-            # iat_mean = np.log1p(iat_mean)
-            # total_bytes = np.log1p(total_bytes)
-
             feature_dict = {
                 **key_dict,
                 "packet_count": packet_count,
@@ -99,17 +93,15 @@ class Extractor:
                 "avg_packet_size": avg_packet_size,
                 "flow_duration": flow_duration,
                 "iat_mean": iat_mean
-            
             }
 
              # init header 
             if headers is None:
                 headers = list(csv_feature_fields)
 
-            row = [feature_dict.get(f, None) for f in csv_feature_fields]
-
+            row = [flow_id] + [feature_dict.get(f, None) for f in csv_feature_fields]
             rows.append(row)
-        self.exporter.export_dataset(rows,csv_feature_fields,output_csv_path,flow_id=False)
+        self.exporter.export_dataset(rows,csv_feature_fields,output_csv_path,flow_id=True)
             
     def extract_sequences_features(self,flows, output_csv):
         rows = []
@@ -164,15 +156,15 @@ class Extractor:
             protocol = flow["protocol"]
             protocol_handler = flow["handler"]
             key_dict  = flow["key_dict"]
-            if protocol not in ["tcp","http", "https"]:
-                continue
-            packets = sorted(flow["packets"], key=lambda x: x.time)
-            if len(packets) < 3:
-                continue
-
             if protocol not in PROTOCOL_RULES:
                 continue
-        
+            if not hasattr(protocol_handler, "get_ptks_by_stages"):
+                continue
+
+            packets = sorted(flow["packets"], key=lambda x: x.time)
+            if len(packets) < 1:
+                continue
+
             stage_pkts = protocol_handler.get_ptks_by_stages(flow)
             has_any_stage = False  
             for s in stages:

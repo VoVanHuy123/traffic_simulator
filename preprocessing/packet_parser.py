@@ -5,6 +5,9 @@ class PacketParser:
 
     def detect_protocol(self,pkt):
 
+        if pkt.haslayer("ISUP"):
+            return "ISUP"
+
         if pkt.haslayer(TCP):
 
             sport = pkt[TCP].sport
@@ -75,8 +78,33 @@ class PacketParser:
             "protocol": None,
             "xid": None,
             "id": None,
-            "icmp_id": None
+            "icmp_id": None,
+            "isup_session_id": None,
+            "isup_msg_type": None,
+            "opc": None,
+            "dpc": None,
+            "cic": None
         }
+
+        # ISUP
+        if pkt.haslayer("ISUP"):
+            isup = pkt["ISUP"]
+            data.update({
+                "protocol": "isup",
+                "transport": "mtp",
+                "isup_session_id": getattr(isup, "session_id", None) or getattr(isup, "isup_session_id", None),
+                "isup_msg_type": getattr(isup, "msg_type", None) or getattr(isup, "message_type", None),
+                "opc": getattr(isup, "opc", None),
+                "dpc": getattr(isup, "dpc", None),
+                "cic": getattr(isup, "cic", None)
+            })
+
+            if pkt.haslayer(IP) or pkt.haslayer(IPv6):
+                ip = pkt[IP] if pkt.haslayer(IP) else pkt[IPv6]
+                data["src_ip"] = ip.src
+                data["dst_ip"] = ip.dst
+
+            return data
 
         # DHCP
         if pkt.haslayer(BOOTP):

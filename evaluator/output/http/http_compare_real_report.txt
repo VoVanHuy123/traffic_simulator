@@ -1,0 +1,26 @@
+Three-way evaluation for protocol=http
+
+Feature: packet_count
+    real_mean=10.8889, old_mean=11.6556, new_mean=11.6556, delta_old=0.7667, delta_new=0.7667
+    KS real-old: statistic=0.1333, pvalue=0.4023; KS real-new: statistic=0.1333, pvalue=0.4023
+    JS real-old=0.3326, JS real-new=0.3326
+
+Feature: flow_duration
+    real_mean=1.6326, old_mean=1.7539, new_mean=1.7539, delta_old=0.1213, delta_new=0.1213
+    KS real-old: statistic=0.3111, pvalue=0.0003; KS real-new: statistic=0.3111, pvalue=0.0003
+    JS real-old=0.4252, JS real-new=0.4252
+
+Feature: total_bytes
+    real_mean=4427.6222, old_mean=3830.4222, new_mean=3830.4222, delta_old=-597.2000, delta_new=-597.2000
+    KS real-old: statistic=0.1333, pvalue=0.4023; KS real-new: statistic=0.1333, pvalue=0.4023
+    JS real-old=0.2923, JS real-new=0.2923
+
+Feature: avg_packet_size
+    real_mean=313.0480, old_mean=372.3505, new_mean=372.3505, delta_old=59.3025, delta_new=59.3025
+    KS real-old: statistic=0.1444, pvalue=0.3060; KS real-new: statistic=0.1444, pvalue=0.3060
+    JS real-old=0.3627, JS real-new=0.3627
+
+Feature: iat_mean
+    real_mean=0.2331, old_mean=0.1606, new_mean=0.1606, delta_old=-0.0725, delta_new=-0.0725
+    KS real-old: statistic=0.2889, pvalue=0.0010; KS real-new: statistic=0.2889, pvalue=0.0010
+    JS real-old=0.3650, JS real-new=0.3650

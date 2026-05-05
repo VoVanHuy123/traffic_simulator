@@ -4,6 +4,7 @@ from .protocols.dns import DNSHandler
 from .protocols.tcp import TCPHandler,HTTPHandler
 from .protocols.imcp import ICMPHandler
 from .protocols.arp import ARPHandler
+from .protocols.isup import ISUPHandler
 
 ExtractRegistry = ProtocolRegistry()
 
@@ -12,3 +13,4 @@ ExtractRegistry.register(DNSHandler())
 ExtractRegistry.register(HTTPHandler())
 ExtractRegistry.register(ICMPHandler())
 ExtractRegistry.register(ARPHandler())
+ExtractRegistry.register(ISUPHandler())

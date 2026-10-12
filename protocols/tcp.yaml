@@ -1,0 +1,37 @@
+name: tcp
+description: "TCP 3-way handshake -> data exchange -> 2-step close"
+sequence:
+  # handshake
+  - message: 2         # SYN
+    direction: 0
+    packet_length: [40, 60]
+    iat: [0.0001, 0.01]
+  - message: 18        # SYN-ACK
+    direction: 1
+    packet_length: [40, 60]
+    iat: [0.0001, 0.05]
+  - message: 16         # ACK
+    direction: 0
+    packet_length: [40, 60]
+    iat: [0.0001, 0.01]
+  # data
+  - repeat:
+      count: [1, 8]
+      messages:
+        - message: 24    # PSH-ACK (client -> server, has payload)
+          direction: 0
+          packet_length: [60, 500]
+          iat: [0.001, 0.2]
+        - message: 24    # PSH-ACK (server -> client, has payload)
+          direction: 1
+          packet_length: [60, 1400]
+          iat: [0.001, 0.2]
+  # closing
+  - message: 17        # FIN-ACK
+    direction: 0
+    packet_length: [40, 60]
+    iat: [0.001, 0.1]
+  - message: 16        # ACK
+    direction: 1
+    packet_length: [40, 60]
+    iat: [0.0001, 0.01]

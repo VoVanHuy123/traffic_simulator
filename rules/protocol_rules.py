@@ -280,6 +280,180 @@ PROTOCOL_RULES = {
         "packet_length_bin":[100, 150, 200, 300],
         "iat_bin":[0.001, 0.01, 0.1, 0.5, 1],
         "evaluation_features":[ "packet_count","flow_duration","total_bytes","avg_packet_size","iat_mean"]
+    },
+
+    "sip": {
+        "packet_count": (4, 12),
+        "packet_size": (150, 600),
+
+        "flow_duration": (0.01, 30),
+        "iat":(0.000001, 5),
+        "flow_key": (
+            "src_ip", "dst_ip", "src_port", "dst_port", "transport", "protocol"
+        ),
+
+        "csv_feature_fields": (
+            "src_ip", "dst_ip", "packet_count", "flow_duration", "avg_packet_size","iat_mean","total_bytes"
+        ),
+        "csv_sequence_fields": (
+            "iat",
+            "packet_length",
+            "direction",
+            "sip_method"
+        ),
+        "cleaning_rules": {
+            "max_flow_duration": 30,
+            "max_iat": 5,
+            "min_packets": 4,
+        },
+        "packet_length_bin":[200, 300, 450],
+        "iat_bin":[0.001, 0.05, 0.5, 2],
+        "evaluation_features":[ "packet_count","flow_duration","total_bytes","avg_packet_size","iat_mean"]
+    },
+
+    "radius": {
+        "packet_count": (2, 2),
+        "packet_size": (40, 200),
+
+        "flow_duration": (0.001, 1),
+        "iat":(0.000001, 0.5),
+        "flow_key": (
+            "src_ip", "dst_ip", "src_port", "dst_port", "transport", "protocol"
+        ),
+
+        "csv_feature_fields": (
+            "src_ip", "dst_ip", "packet_count", "flow_duration", "avg_packet_size","iat_mean","total_bytes"
+        ),
+        "csv_sequence_fields": (
+            "iat",
+            "packet_length",
+            "direction",
+            "radius_code"
+        ),
+        "cleaning_rules": {
+            "max_flow_duration": 1,
+            "max_iat": 0.5,
+            "min_packets": 2,
+        },
+        "packet_length_bin":[60, 100, 150],
+        "iat_bin":[0.0001, 0.01, 0.1],
+        "evaluation_features":[ "packet_count","flow_duration","total_bytes","avg_packet_size","iat_mean"]
+    },
+
+    "gtp": {
+        "packet_count": (4, 4),
+        "packet_size": (40, 128),
+
+        "flow_duration": (0.001, 1),
+        "iat":(0.000001, 0.5),
+        "flow_key": (
+            "src_ip", "dst_ip", "src_port", "dst_port", "transport", "protocol"
+        ),
+
+        "csv_feature_fields": (
+            "src_ip", "dst_ip", "packet_count", "flow_duration", "avg_packet_size","iat_mean","total_bytes"
+        ),
+        "csv_sequence_fields": (
+            "iat",
+            "packet_length",
+            "direction",
+            "gtp_type"
+        ),
+        "cleaning_rules": {
+            "max_flow_duration": 1,
+            "max_iat": 0.5,
+            "min_packets": 2,
+        },
+        "packet_length_bin":[50, 70, 100],
+        "iat_bin":[0.0001, 0.01, 0.1],
+        "evaluation_features":[ "packet_count","flow_duration","total_bytes","avg_packet_size","iat_mean"]
+    },
+
+    "rtp": {
+        "packet_count": (20, 200),
+        "packet_size": (60, 300),
+
+        "flow_duration": (0.4, 4),
+        "iat":(0.01, 0.03),
+        "flow_key": (
+            "src_ip", "dst_ip", "src_port", "dst_port", "transport", "protocol"
+        ),
+
+        "csv_feature_fields": (
+            "src_ip", "dst_ip", "packet_count", "flow_duration", "avg_packet_size","iat_mean","total_bytes"
+        ),
+        "csv_sequence_fields": (
+            "iat",
+            "packet_length",
+            "direction",
+            "rtp_payload_type"
+        ),
+        "cleaning_rules": {
+            "max_flow_duration": 4,
+            "max_iat": 0.1,
+            "min_packets": 20,
+        },
+        "packet_length_bin":[80, 120, 200],
+        "iat_bin":[0.015, 0.02, 0.025],
+        "evaluation_features":[ "packet_count","flow_duration","total_bytes","avg_packet_size","iat_mean"]
+    },
+
+    "map": {
+        "packet_count": (4, 4),
+        "packet_size": (60, 180),
+
+        "flow_duration": (0.02, 1),
+        "iat":(0.001, 0.5),
+        "flow_key": (
+            "opc", "dpc", "protocol"
+        ),
+
+        "csv_feature_fields": (
+            "packet_count", "flow_duration", "avg_packet_size","iat_mean","total_bytes"
+        ),
+        "csv_sequence_fields": (
+            "iat",
+            "packet_length",
+            "direction",
+            "map_msg_type"
+        ),
+        "cleaning_rules": {
+            "max_flow_duration": 1,
+            "max_iat": 0.5,
+            "min_packets": 4,
+        },
+        "packet_length_bin":[80, 110, 150],
+        "iat_bin":[0.01, 0.1, 0.3],
+        "evaluation_features":[ "packet_count","flow_duration","total_bytes","avg_packet_size","iat_mean"]
+    },
+
+    "diameter": {
+        "packet_count": (2, 2),
+        "packet_size": (20, 100),
+
+        "flow_duration": (0.005, 1),
+        "iat":(0.001, 0.5),
+        "flow_key": (
+            "src_ip", "dst_ip", "src_port", "dst_port", "transport", "protocol"
+        ),
+
+        "csv_feature_fields": (
+            "src_ip", "dst_ip", "packet_count", "flow_duration", "avg_packet_size","iat_mean","total_bytes"
+        ),
+        "csv_sequence_fields": (
+            "iat",
+            "packet_length",
+            "direction",
+            "diameter_cmd"
+        ),
+        "cleaning_rules": {
+            "max_flow_duration": 1,
+            "max_iat": 0.5,
+            "min_packets": 2,
+        },
+        "packet_length_bin":[40, 60, 80],
+        "iat_bin":[0.001, 0.01, 0.1],
+        "evaluation_features":[ "packet_count","flow_duration","total_bytes","avg_packet_size","iat_mean"]
     }
 }
 

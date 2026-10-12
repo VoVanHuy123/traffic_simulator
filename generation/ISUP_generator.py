@@ -1,16 +1,11 @@
-import time
 import random
 import struct
-import numpy as np
 import pandas as pd
 
-from scapy.all import IP, wrpcap
-# from scapy.contrib.isup import ISUP
+from scapy.all import IP
 from scapy.layers.sctp import SCTP, SCTPChunkData
-# from scapy.contrib.m3ua import M3UA
 
 from .base_generator import BaseFlowGenerator
-from rules.protocol_rules import PROTOCOL_RULES
 
 
 # ==============================
@@ -211,31 +206,6 @@ class ISUPFlowGenerator(BaseFlowGenerator):
 
     protocol = "isup"
 
-    def decode_packet(self, parts):
-        msg_type = parts[0]
-        direction = int(parts[1])
-        length_bin = int(parts[2])
-        iat_bin = int(parts[3])
-
-        length_map = {
-            0: np.random.randint(14, 20),
-            1: np.random.randint(20, 30),
-            2: np.random.randint(30, 40),
-        }
-
-        iat_map = {
-            0: np.random.uniform(0.0001, 0.01),
-            1: np.random.uniform(0.01, 0.1),
-            2: np.random.uniform(0.1, 0.5),
-        }
-
-        return {
-            "direction": direction,
-            "isup_msg_type": str(msg_type),
-            "packet_length": length_map.get(length_bin, 20),
-            "iat": iat_map.get(iat_bin, 0.01),
-        }
-
     def build_packet(self, src_ip, dst_ip, msg_type, cic ,opc=1, dpc=2):
         msg_code = normalize_msg_type(msg_type)
 
@@ -268,49 +238,9 @@ class ISUPFlowGenerator(BaseFlowGenerator):
 
         return pkt
 
-    # def to_pcap(self, flows, output="isup_generated.pcap"):
-    #     packets = []
-    #     now = time.time()
-        
-
-    #     if isinstance(flows, pd.DataFrame):
-    #         flows = [flows]
-
-    #     for df in flows:
-    #         client_ip = f"192.0.2.{random.randint(2,200)}"
-    #         server_ip = f"198.51.100.{random.randint(2,200)}"
-    #         cic = random.randint(1, 60)
-    #         opc_tmp = random.randint(1, 100)
-    #         dpc_tmp = random.randint(1, 100)
-        
-
-    #         for _, row in df.iterrows():
-    #             direction = int(row["direction"])
-    #             msg_type = row["isup_msg_type"]
-    #             iat = float(row["iat"])
-
-    #             if ISUP_MESSAGE_DIRECTION.get(msg_type.upper(), 0) == 0:
-    #                 opc = opc_tmp
-    #                 dpc = dpc_tmp
-    #             else:
-    #                 opc = dpc_tmp
-    #                 dpc = opc_tmp
-
-    #             now += iat
-
-    #             src = client_ip if direction == 0 else server_ip
-    #             dst = server_ip if direction == 0 else client_ip
-
-    #             pkt = self.build_packet(src, dst, msg_type,cic,opc,dpc)
-    #             pkt.time = now
-
-    #             packets.append(pkt)
-
-    #     wrpcap(output, packets)
-    #     print(f"\n✅ Saved {len(packets)} packets -> {output}")
-    def to_pcap(self, flows, output="isup_generated.pcap"):
+    def build_packets(self, flows, base_time):
         packets = []
-        start_time = time.time()
+        start_time = base_time
 
         if isinstance(flows, pd.DataFrame):
             flows = [flows]
@@ -380,64 +310,4 @@ class ISUPFlowGenerator(BaseFlowGenerator):
         # 👉 rất quan trọng
         packets.sort(key=lambda x: x.time)
 
-        wrpcap(output, packets)
-        print(f"\n✅ Saved {len(packets)} packets -> {output}")
-
-    def generate_sequences_by_stages(self, pkt_count):
-        """
-        Sinh sequences packet ISUP theo các giai đoạn: setup, active, cleanup
-        Trả về tuple: (DataFrame tổng hợp, dict các giai đoạn)
-        """
-        rules = PROTOCOL_RULES.get(self.protocol)
-        stages = rules.get("stages")
-        stage_pkts = rules.get("stage_packets")
-
-        results = []
-        results_dict = {
-            "setup": None,
-            "active": None,
-            "cleanup": None
-        }
-        remaining = pkt_count
-
-        # 1. SETUP
-        setup_count = stage_pkts.get("setup", 2)
-        if remaining >= setup_count:
-            self.set_model("setup")
-            df = self.generate(setup_count)
-            results.append(df)
-            results_dict["setup"] = df
-            remaining -= setup_count
-        else:
-            
-            self.set_model("setup")
-            df = self.generate(remaining)
-            results.append(df)
-            results_dict["setup"] = df
-            return pd.concat(results, ignore_index=True), results_dict
-
-        # 2. ACTIVE
-        cleanup_count = stage_pkts.get("cleanup", 2)
-        has_active = False
-        if remaining > 0:
-            if remaining > cleanup_count:
-                active_count = remaining - cleanup_count
-            else:
-                active_count = remaining
-
-            if active_count > 0:
-                self.set_model("active")
-                df = self.generate(active_count)
-                results.append(df)
-                results_dict["active"] = df
-                remaining -= active_count
-                has_active = True
-
-        # 3. CLEANUP 
-        if has_active and remaining > 0:
-            self.set_model("cleanup")
-            df = self.generate(remaining)
-            results.append(df)
-            results_dict["cleanup"] = df
-
-        return pd.concat(results, ignore_index=True), results_dict
+        return packets

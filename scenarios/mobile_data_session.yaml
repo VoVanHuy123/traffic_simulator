@@ -1,0 +1,10 @@
+name: mobile_data_session
+description: "Phien du lieu di dong: GTP keepalive tunnel + DNS lookup + duyet HTTP"
+components:
+  - protocol: gtp
+    num_flows: 8
+  - protocol: dns
+    num_flows: 15
+  - protocol: http
+    num_flows: 8
+output: "output/scenario_mobile_data_session.pcap"

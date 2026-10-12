@@ -1,0 +1,10 @@
+name: office_browsing
+description: "Traffic van phong thong thuong: DNS lookup, HTTP browsing, vai ping"
+components:
+  - protocol: dns
+    num_flows: 20
+  - protocol: http
+    num_flows: 10
+  - protocol: icmp
+    num_flows: 5
+output: "output/scenario_office_browsing.pcap"

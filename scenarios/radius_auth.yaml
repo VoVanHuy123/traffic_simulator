@@ -1,0 +1,10 @@
+name: radius_auth
+description: "Thiet bi vao mang: xac thuc RADIUS, xin DHCP lease, ARP dò gateway"
+components:
+  - protocol: radius
+    num_flows: 10
+  - protocol: dhcp
+    num_flows: 10
+  - protocol: arp
+    num_flows: 10
+output: "output/scenario_radius_auth.pcap"

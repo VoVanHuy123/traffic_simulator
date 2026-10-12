@@ -1,0 +1,10 @@
+name: rtp
+description: "RTP media stream: burst of PCMU audio packets (one direction per flow)"
+sequence:
+  - repeat:
+      count: [20, 100]
+      messages:
+        - message: 0       # PCMU payload type
+          direction: 0
+          packet_length: [80, 172]
+          iat: [0.018, 0.022]   # ~20ms packetization

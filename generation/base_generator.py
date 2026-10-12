@@ -2,115 +2,31 @@ import sys
 import os
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from abc import ABC, abstractmethod
-import numpy as np
-import pandas as pd
-import joblib
-from rules.protocol_rules import PROTOCOL_RULES
+import random
+from scapy.all import wrpcap
 
 
 class BaseFlowGenerator:
-    protocol= ""
-    model_dir = "models/sequences_models"
-    def __init__(self):
-        self.inv_state_map = None
-        self.hmm = None
-        try:
-            self.hmm = joblib.load(f"{self.model_dir}/{self.protocol}/{self.protocol}_hmm.pkl")
-            self.inv_state_map = joblib.load(f"{self.model_dir}/{self.protocol}/{self.protocol}_inv_state_map.pkl")
-
-            self.hmm_cont = joblib.load(f"{self.model_dir}/{self.protocol}/{self.protocol}_hmm_cont.pkl")
-            self.scaler = joblib.load(f"{self.model_dir}/{self.protocol}/{self.protocol}_scaler.pkl")
-        except:
-            self.hmm_cont = None
-            self.scaler = None
+    protocol = ""
 
     def match(self, protocol):
         return self.protocol == protocol
 
+    def build_packets(self, all_df, base_time):
+        """Build the list of Scapy packets for this protocol without writing a file.
 
-    def set_model(self, stage=None):
-        if stage:
-            base = f"{self.model_dir}/{self.protocol}/{stage}/{self.protocol}_{stage}"
-        else:
-            base = f"{self.model_dir}/{self.protocol}/{self.protocol}"
+        `all_df` is a list of per-flow sequence DataFrames, each produced by
+        generation/declarative_generator.py from this protocol's declared
+        spec (protocols/<name>.yaml) -- no trained model involved.
 
-        self.hmm = joblib.load(f"{base}_hmm.pkl")
-        self.inv_state_map = joblib.load(f"{base}_inv_state_map.pkl")
-
-    def build_bins(self,value_range, bin_edges):
+        `base_time` is the shared timeline origin so multiple protocols can be
+        merged into one PCAP (see generation/scenario_runner.py) with a
+        consistent, interleavable timestamp axis.
         """
-        (min,max) + [edges]
-        -> list[(low,high)]
-        """
-        low, high = value_range
-        edges = [low] + list(bin_edges) + [high]
-
-        return [(edges[i], edges[i+1]) for i in range(len(edges)-1)]
-    # DECODE BIN → VALUE
-    
-    def decode_packet(self, parts):
-
-        cfg = PROTOCOL_RULES[self.protocol]
-        seq_fields = cfg["csv_sequence_fields"]
-
-        direction = int(parts[0])
-        proto_state = int(parts[1])
-        length_bin = int(parts[2])
-        iat_bin = int(parts[3])
-
-        # build bins
-        length_bins = self.build_bins(
-            cfg["packet_size"],
-            cfg["packet_length_bin"]
-        )
-
-        iat_bins = self.build_bins(
-            cfg["flow_duration"],
-            cfg["iat_bin"]
-        )
-
-        packet_length = np.random.randint(*length_bins[length_bin])
-        iat = np.random.uniform(*iat_bins[iat_bin])
-
-        # dynamic packet
-        packet = {}
-
-        for field in seq_fields:
-
-            if field == "direction":
-                packet[field] = direction
-
-            elif field == "packet_length":
-                packet[field] = packet_length
-
-            elif field == "iat":
-                packet[field] = iat
-
-            else:
-                # dhcp_msg_type / arp_opcode / tcp_flags...
-                packet[field] = proto_state
-
-        return packet
-
-    
-    # GENERATE
-    def generate(self, n_packets=10):
-        Xd, _ = self.hmm.sample(n_packets)
-
-        states = [self.inv_state_map[int(s[0])] for s in Xd]
-
-        rows = []
-
-        for s in states:
-            parts = s.split("_")
-            row = self.decode_packet(parts)
-            rows.append(row)
-
-        return pd.DataFrame(rows)
-    def generate_sequences(self,n_packets):
-        return self.generate(n_packets)
-    
-    def to_pcap(self):
         raise NotImplementedError
-    
+
+    def to_pcap(self, all_df, filename):
+        base_time = random.uniform(1700000000, 1800000000)
+        packets = self.build_packets(all_df, base_time)
+        wrpcap(filename, packets)
+        print(f"Saved {filename}")

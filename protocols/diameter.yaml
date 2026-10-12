@@ -1,0 +1,11 @@
+name: diameter
+description: "Diameter S6a Update-Location (4G/LTE): MME -> HSS khi thue bao attach"
+sequence:
+  - message: ULR       # Update-Location-Request
+    direction: 0
+    packet_length: [60, 100]
+    iat: [0.001, 0.05]
+  - message: ULA       # Update-Location-Answer
+    direction: 1
+    packet_length: [20, 60]
+    iat: [0.001, 0.2]

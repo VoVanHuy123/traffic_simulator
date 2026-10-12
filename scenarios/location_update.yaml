@@ -1,0 +1,10 @@
+name: location_update
+description: "Cap nhat vi tri thue bao tren ca 3 the he mang: SS7 MAP (2G/3G), GTP-C (2G/3G PS), Diameter S6a (4G)"
+components:
+  - protocol: map
+    num_flows: 10
+  - protocol: gtp
+    num_flows: 10
+  - protocol: diameter
+    num_flows: 10
+output: "output/scenario_location_update.pcap"

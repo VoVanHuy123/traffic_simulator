@@ -1,0 +1,19 @@
+name: gtp
+description: "GTP-C keepalive (Echo) + location update (Update PDP Context on SGSN change)"
+sequence:
+  - message: 1        # Echo Request
+    direction: 0
+    packet_length: [40, 60]
+    iat: [0.0001, 0.01]
+  - message: 2        # Echo Response
+    direction: 1
+    packet_length: [40, 60]
+    iat: [0.001, 0.1]
+  - message: 18       # Update PDP Context Request (new SGSN -> GGSN: subscriber location update)
+    direction: 0
+    packet_length: [60, 120]
+    iat: [0.1, 2]
+  - message: 19       # Update PDP Context Response
+    direction: 1
+    packet_length: [60, 120]
+    iat: [0.001, 0.1]

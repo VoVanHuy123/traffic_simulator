@@ -1,0 +1,8 @@
+name: voip_call
+description: "Cuoc goi VoIP day du: SIP bao hieu + luong media RTP"
+components:
+  - protocol: sip
+    num_flows: 5
+  - protocol: rtp
+    num_flows: 10
+output: "output/scenario_voip_call.pcap"

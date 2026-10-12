@@ -1,0 +1,8 @@
+name: dhcp_bootstrap
+description: "Thiet bi moi vao mang: xin DHCP lease va ARP dò dia chi"
+components:
+  - protocol: dhcp
+    num_flows: 10
+  - protocol: arp
+    num_flows: 10
+output: "output/scenario_dhcp_bootstrap.pcap"

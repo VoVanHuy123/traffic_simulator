@@ -1,0 +1,19 @@
+name: map
+description: "SS7 MAP Location Update (2G/3G): VLR <-> HLR khi thue bao doi vung phuc vu"
+sequence:
+  - message: UPDATE_LOCATION
+    direction: 0
+    packet_length: [90, 130]
+    iat: [0.001, 0.05]
+  - message: INSERT_SUBSCRIBER_DATA
+    direction: 1
+    packet_length: [100, 180]
+    iat: [0.01, 0.3]
+  - message: INSERT_SUBSCRIBER_DATA_ACK
+    direction: 0
+    packet_length: [60, 90]
+    iat: [0.01, 0.2]
+  - message: UPDATE_LOCATION_ACK
+    direction: 1
+    packet_length: [60, 100]
+    iat: [0.01, 0.2]

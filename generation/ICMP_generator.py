@@ -2,10 +2,8 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import numpy as np
-import pandas as pd
-import joblib
 import random
-from scapy.all import wrpcap, ICMP, IP, Raw
+from scapy.all import ICMP, IP, Raw
 from .base_generator import BaseFlowGenerator
 
 class ICMPFlowGenerator(BaseFlowGenerator):
@@ -13,12 +11,9 @@ class ICMPFlowGenerator(BaseFlowGenerator):
 
     
 
-    def to_pcap(self,all_df, filename="icmp_output.pcap"):
+    def build_packets(self, all_df, base_time):
 
         packets = []
-
-        # base time (realistic)
-        base_time = random.uniform(1700000000, 1800000000)
         time = base_time
 
         for df in all_df:
@@ -69,5 +64,4 @@ class ICMPFlowGenerator(BaseFlowGenerator):
 
                 seq += 1
 
-        wrpcap(filename, packets)
-        print(f"Saved {filename}")
+        return packets

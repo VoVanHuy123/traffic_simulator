@@ -6,8 +6,8 @@ class TCPHandler(ProtocolHandler):
 
     name = "tcp"
 
-    def match(self, pkt, data):
-        return data["protocol"] in ["tcp", "http", "https"]
+    def match(self, pkt):
+        return pkt.haslayer(TCP)
 
 
     def build_flow_key(self, data):

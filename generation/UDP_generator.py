@@ -3,8 +3,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import numpy as np
 import pandas as pd
-import joblib
-from scapy.all import wrpcap, IP, UDP, DNS,DNSQR,DNSRR,Raw,DHCP,BOOTP,RandMAC,mac2str,Ether
+from scapy.all import IP, UDP, DNS,DNSQR,DNSRR,Raw,DHCP,BOOTP,RandMAC,mac2str,Ether
 import random
 import time
 from .base_generator import BaseFlowGenerator
@@ -17,35 +16,6 @@ class UDPFlowGenerator(BaseFlowGenerator):
 
 class DNSFlowGenerator(UDPFlowGenerator):
     protocol = "dns"
-    def decode_packet(self, parts):
-
-        direction = int(parts[0])
-        flag = int(parts[1])
-
-        # packet_length bin → value
-        length_bin = int(parts[2])
-        length_map = {
-            0: np.random.randint(40, 70),
-            1: np.random.randint(70, 100),
-            2: np.random.randint(100, 300),
-            3: np.random.randint(300, 1500)
-        }
-
-        # iat bin → value
-        iat_bin = int(parts[3])
-        iat_map = {
-            0: np.random.uniform(0.000001, 0.0001),
-            1: np.random.uniform(0.0001, 0.01),
-            2: np.random.uniform(0.01, 0.1),
-            3: np.random.uniform(0.1, 1)
-        }
-
-        return {
-            "direction": direction,
-            "dns_type": flag,
-            "packet_length": length_map[length_bin],
-            "iat": iat_map[iat_bin]
-        }
     def random_domain(self):
         domains = DNS_DATA.get("domains")
         domain = random.choice(domains)
@@ -61,10 +31,10 @@ class DNSFlowGenerator(UDPFlowGenerator):
         }
         return mapping.get(dns_type, "A")
 
-    def to_pcap(self, all_df, filename="dns_output.pcap"):
+    def build_packets(self, all_df, base_time):
 
         packets = []
-        time = 0
+        time = base_time
 
         for df in all_df:
 
@@ -129,19 +99,18 @@ class DNSFlowGenerator(UDPFlowGenerator):
                 pkt.time = time
                 packets.append(pkt)
 
-        wrpcap(filename, packets)
-        print(f"Saved {filename}")
-    
-    
-    
+        return packets
+
+
+
 class DHCPFlowGenerator(UDPFlowGenerator):
     protocol = "dhcp"
-    def to_pcap(self, flows, output="dhcp_generated.pcap"):
+    def build_packets(self, flows, base_time):
 
         packets = []
-        current_time = time.time()
+        current_time = base_time
 
-       
+
 
         client_ip = "192.168.1.2"
         server_ip = "192.168.1.1"
@@ -221,9 +190,4 @@ class DHCPFlowGenerator(UDPFlowGenerator):
 
                 packets.append(pkt)
 
-        # =====================
-        # Write PCAP
-        # =====================
-        wrpcap(output, packets)
-
-        print(f"✅ Saved {len(packets)} packets → {output}")
+        return packets

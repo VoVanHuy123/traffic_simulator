@@ -1,0 +1,8 @@
+name: network_scan
+description: "Quet mang noi bo: nhieu ARP request/response va ICMP ping ngan"
+components:
+  - protocol: arp
+    num_flows: 30
+  - protocol: icmp
+    num_flows: 20
+output: "output/scenario_network_scan.pcap"

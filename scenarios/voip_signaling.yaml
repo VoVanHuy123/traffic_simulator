@@ -1,0 +1,6 @@
+name: voip_signaling
+description: "Bao hieu cuoc goi ISUP (thiet lap/giai phong cuoc goi qua M3UA)"
+components:
+  - protocol: isup
+    num_flows: 15
+output: "output/scenario_voip_signaling.pcap"

@@ -1,0 +1,11 @@
+name: dns
+description: "DNS query/response don gian (A record)"
+sequence:
+  - message: 1        # record type: A
+    direction: 0
+    packet_length: [40, 70]
+    iat: [0.0001, 0.01]
+  - message: 1
+    direction: 1
+    packet_length: [70, 300]
+    iat: [0.001, 0.1]

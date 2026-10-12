@@ -3,50 +3,12 @@ import os
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import numpy as np
-import pandas as pd
-import joblib
-import numpy as np
 import random
-from scapy.all import Ether, ARP, wrpcap
+from scapy.all import Ether, ARP
 from .base_generator import BaseFlowGenerator
 
 class ARPFlowGenerator(BaseFlowGenerator):
     protocol = "arp"
-
-    
-
-    def decode_packet(self, parts):
-
-        direction = int(parts[0])
-        flag = int(parts[1])
-
-        # packet_length bin → value
-        length_bin = int(parts[2])
-        length_map = {
-            0: np.random.randint(40, 70),
-            1: np.random.randint(70, 90),
-            2: np.random.randint(90, 100),
-            3: np.random.randint(100, 128)
-        }
-
-        # iat bin → value
-        iat_bin = int(parts[3])
-        iat_map = {
-            0: np.random.uniform(0.000001, 0.0001),
-            1: np.random.uniform(0.0001, 0.01),
-            2: np.random.uniform(0.01, 0.1),
-            3: np.random.uniform(0.1, 1)
-        }
-
-        return {
-            "direction": direction,
-            "arp_opcode": flag,
-            "packet_length": length_map[length_bin],
-            "iat": iat_map[iat_bin]
-        }
-    from scapy.all import Ether, ARP, wrpcap
-
-
 
     def random_mac(self):
         return "02:%02x:%02x:%02x:%02x:%02x" % tuple(
@@ -54,10 +16,8 @@ class ARPFlowGenerator(BaseFlowGenerator):
         )
 
 
-    def to_pcap(self,all_df, filename="arp_output.pcap"):
+    def build_packets(self, all_df, base_time):
         packets = []
-        time = 0
-        base_time = random.uniform(1700000000, 2000000000)
         time = base_time
         for df in all_df:
             time += random.uniform(0.01, 0.5)
@@ -115,5 +75,4 @@ class ARPFlowGenerator(BaseFlowGenerator):
                 pkt.time = time
                 packets.append(pkt)
 
-        wrpcap(filename, packets)
-        print(f" Saved {filename}")
+        return packets

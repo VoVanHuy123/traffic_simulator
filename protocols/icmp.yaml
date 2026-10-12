@@ -1,0 +1,14 @@
+name: icmp
+description: "Ping burst: N cap echo-request/echo-reply"
+sequence:
+  - repeat:
+      count: [1, 5]
+      messages:
+        - message: 8       # echo-request
+          direction: 0
+          packet_length: [56, 128]
+          iat: [0.01, 0.5]
+        - message: 0       # echo-reply
+          direction: 1
+          packet_length: [56, 128]
+          iat: [0.0001, 0.01]

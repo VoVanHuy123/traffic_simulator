@@ -1,0 +1,31 @@
+name: sip
+description: "SIP VoIP call signaling: INVITE -> 100/180/200 -> ACK -> BYE -> 200"
+sequence:
+  - message: INVITE
+    direction: 0
+    packet_length: [300, 500]
+    iat: [0.0001, 0.01]
+  - message: "100"        # Trying
+    direction: 1
+    packet_length: [150, 250]
+    iat: [0.001, 0.05]
+  - message: "180"        # Ringing
+    direction: 1
+    packet_length: [150, 250]
+    iat: [0.1, 2]
+  - message: "200"        # OK (call answered)
+    direction: 1
+    packet_length: [200, 300]
+    iat: [0.5, 5]
+  - message: ACK
+    direction: 0
+    packet_length: [150, 250]
+    iat: [0.001, 0.05]
+  - message: BYE
+    direction: 0
+    packet_length: [150, 250]
+    iat: [1, 20]
+  - message: "200"        # OK (bye acknowledged)
+    direction: 1
+    packet_length: [150, 250]
+    iat: [0.001, 0.05]

@@ -1,0 +1,26 @@
+name: isup
+description: "ISUP call setup/active/cleanup (M3UA/SCTP signaling)"
+sequence:
+  - message: IAM
+    direction: 0
+    packet_length: [90, 120]
+    iat: [0.001, 0.05]
+  - message: ACM
+    direction: 1
+    packet_length: [80, 100]
+    iat: [0.01, 0.2]
+  - repeat:
+      count: [0, 3]
+      messages:
+        - message: ANM
+          direction: 1
+          packet_length: [80, 100]
+          iat: [0.01, 0.5]
+  - message: REL
+    direction: 0
+    packet_length: [80, 110]
+    iat: [0.01, 0.3]
+  - message: RLC
+    direction: 1
+    packet_length: [80, 100]
+    iat: [0.01, 0.2]
